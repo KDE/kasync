@@ -40,28 +40,26 @@ public:
 private Q_SLOTS:
     void testSyncPromises();
     void testAsyncPromises();
+    void testSyncEach();
 };
 
 void AsyncTest::testSyncPromises()
 {
     auto baseJob = Async::start<int>(
-        []() -> Async::Future<int> {
-            auto f = Async::Future<int>(42);
+        [](Async::Future<int> &f) {
+            f.setValue(42);
             f.setFinished();
-            return f;
         })
     .then<QString, int>(
-        [](int v) -> Async::Future<QString> {
-            auto f = Async::Future<QString>("Result is " + QString::number(v));
+        [](int v, Async::Future<QString> &f) {
+            f.setValue("Result is " + QString::number(v));
             f.setFinished();
-            return f;
         });
 
     auto job = baseJob.then<QString, QString>(
-        [](const QString &v) -> Async::Future<QString> {
-            auto f = Async::Future<QString>(v.toUpper());
+        [](const QString &v, Async::Future<QString> &f) {
+            f.setValue(v.toUpper());
             f.setFinished();
-            return f;
         });
 
     job.exec();
@@ -73,8 +71,7 @@ void AsyncTest::testSyncPromises()
 void AsyncTest::testAsyncPromises()
 {
     auto job = Async::start<int>(
-      []() -> Async::Future<int> {
-          Async::Future<int> future(-1);
+      [](Async::Future<int> &future) {
           QTimer *timer = new QTimer();
           QObject::connect(timer, &QTimer::timeout,
                            [&]() {
@@ -85,12 +82,27 @@ void AsyncTest::testAsyncPromises()
                            timer, &QObject::deleteLater);
           timer->setSingleShot(true);
           timer->start(200);
-          return future;
       });
 
     job.exec();
     Async::Future<int> future = job.result();
     QCOMPARE(future.value(), 42);
+}
+
+void AsyncTest::testSyncEach()
+{
+  /*
+    auto job = Async::start<QList<int>>(
+        []() -> Async::Future<QList<int>> {
+            Async::Future<QList<int>> future(QList<int>{ 1, 2, 3, 4 });
+            future.setFinished();
+            return future;
+        })
+    .each<QList<int>, int>(
+        [](const int &v, Async::Future<QList<int>> &future) {
+            setFinished();
+        });
+        */
 }
 
 

@@ -26,6 +26,25 @@
 
 namespace Async {
 
+namespace detail {
+
+template<typename T>
+struct identity
+{
+    typedef T type;
+};
+
+template<typename T, typename Enable = void>
+struct isIterable {
+    enum { value = 0 };
+};
+
+template<typename T>
+struct isIterable<T, typename std::conditional<false, typename T::iterator, void>::type> {
+    enum { value = 1 };
+};
+
+} // namespace Detail
 
 } // namespace Async
 

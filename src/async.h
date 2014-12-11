@@ -39,13 +39,20 @@ class JobBase;
 template<typename Out, typename ... In>
 class Job;
 
-template<typename Out, typename ... In, typename F>
-Job<Out, In ...> start(F func);
+template<typename Out, typename ... In>
+using ThenTask = typename detail::identity<std::function<void(In ..., Async::Future<Out>&)>>::type;
+template<typename Out, typename In>
+using EachTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
+template<typename Out, typename In>
+using ReduceTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
+
+template<typename Out, typename ... In>
+Job<Out, In ...> start(ThenTask<Out, In ...> func);
 
 namespace Private
 {
     template<typename Out, typename ... In>
-    Async::Future<Out>* doExec(Job<Out, In ...> *job, const In & ... args);
+    void doExec(Job<Out, In ...> *job, Async::Future<Out> &out, const In & ... args);
 }
 
 class JobBase
@@ -56,7 +63,8 @@ class JobBase
 protected:
     enum JobType {
         Then,
-        Each
+        Each,
+        Reduce
     };
 
 public:
@@ -75,8 +83,8 @@ class Job : public JobBase
     template<typename Out_, typename ... In_>
     friend class Job;
 
-    template<typename Out_, typename ... In_, typename F_>
-    friend Job<Out_, In_ ...> start(F_ func);
+    template<typename Out_, typename ... In_>
+    friend Job<Out_, In_ ...> start(Async::ThenTask<Out_, In_ ...> func);
 
     typedef Out OutType;
     typedef typename std::tuple_element<0, std::tuple<In ..., void>>::type InType;
@@ -87,16 +95,28 @@ public:
         delete reinterpret_cast<Async::Future<Out>*>(mResult);
     }
 
-    template<typename Out_, typename ... In_, typename F>
-    Job<Out_, In_ ...> then(F func)
+    template<typename Out_, typename ... In_>
+    Job<Out_, In_ ...> then(ThenTask<Out_, In_ ...> func)
     {
         return Job<Out_, In_ ...>::create(func, JobBase::Then, this);
     }
 
-    template<typename Out_, typename ... In_, typename F>
-    Job<Out_, In_ ...> each(F func)
+    template<typename Out_, typename In_>
+    Job<Out_, In_> each(EachTask<Out_, In_> func)
     {
-        return Job<Out_, In_ ...>::create(func, JobBase::Each, this);
+        static_assert(detail::isIterable<OutType>::value,
+                      "The 'Each' task can only be connected to a job that returns a list or array.");
+        static_assert(detail::isIterable<Out_>::value,
+                      "The result type of 'Each' task must be a list or an array.");
+        return Job<Out_, In_>::create(func, JobBase::Each, this);
+    }
+
+    template<typename Out_, typename In_>
+    Job<Out_, In_> reduce(ReduceTask<Out_, In_> func)
+    {
+        static_assert(Async::detail::isIterable<OutType>::value,
+                      "The result type of 'Reduce' task must be a list or an array.");
+        return Job<Out_, In_>::create(func, JobBase::Reduce, this);
     }
 
     Async::Future<Out> result() const
@@ -116,7 +136,7 @@ private:
     static Job<Out, In ... > create(F func, JobBase::JobType jobType, JobBase *parent = nullptr);
 
 public:
-    std::function<Async::Future<Out>(In ...)> mFunc;
+    std::function<void(In ..., Async::Future<Out>&)> mFunc;
 };
 
 
@@ -126,16 +146,16 @@ public:
 
 // ********** Out of line definitions ****************
 
-template<typename Out, typename ... In, typename F>
-Async::Job<Out, In ...> Async::start(F func)
+template<typename Out, typename ... In>
+Async::Job<Out, In ...> Async::start(ThenTask<Out, In ...> func)
 {
     return Job<Out, In ...>::create(func, JobBase::Then);
 }
 
 template<typename Out, typename ... In>
-Async::Future<Out>* Async::Private::doExec(Job<Out, In ...> *job, const In & ... args)
+void Async::Private::doExec(Job<Out, In ...> *job, Async::Future<Out> &out, const In & ... args)
 {
-    return new Async::Future<Out>(job->mFunc(args ...));
+    job->mFunc(args ..., out);
 };
 
 template<typename Out, typename ... In>
@@ -148,10 +168,10 @@ void Async::Job<Out, In ...>::exec()
         assert(in->isFinished());
     }
 
-    Job<Out, In ...> *job = dynamic_cast<Job<Out, In ...>*>(this);
-    Async::Future<Out> *out = Private::doExec<Out, In ...>(this, in ? in->value() : In() ...);
+    auto out = new Async::Future<Out>();
+    Private::doExec<Out, In ...>(this, *out, in ? in->value() : In() ...);
     out->waitForFinished();
-    job->mResult = reinterpret_cast<void*>(out);
+    mResult = reinterpret_cast<void*>(out);
 }
 
 template<typename Out, typename ... In>
