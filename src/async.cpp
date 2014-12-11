@@ -28,7 +28,19 @@
 
 using namespace Async;
 
-JobBase::JobBase(ExecutorBase *executor)
+Private::ExecutorBase::ExecutorBase(ExecutorBase* parent)
+    : mPrev(parent)
+    , mResult(0)
+{
+}
+
+Private::ExecutorBase::~ExecutorBase()
+{
+    delete mResult;
+}
+
+
+JobBase::JobBase(Private::ExecutorBase *executor)
     : mExecutor(executor)
 {
 }
