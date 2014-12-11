@@ -91,18 +91,21 @@ void AsyncTest::testAsyncPromises()
 
 void AsyncTest::testSyncEach()
 {
-  /*
     auto job = Async::start<QList<int>>(
-        []() -> Async::Future<QList<int>> {
-            Async::Future<QList<int>> future(QList<int>{ 1, 2, 3, 4 });
+        [](Async::Future<QList<int>> &future) {
+            future.setValue(QList<int>{ 1, 2, 3, 4 });
             future.setFinished();
-            return future;
         })
     .each<QList<int>, int>(
         [](const int &v, Async::Future<QList<int>> &future) {
-            setFinished();
+            future.setValue(QList<int>{ v + 1 });
+            future.setFinished();
         });
-        */
+
+    job.exec();
+    Async::Future<QList<int>> future = job.result();
+    const QList<int> expected({ 2, 3, 4, 5 });
+    QCOMPARE(future.value(), expected);
 }
 
 

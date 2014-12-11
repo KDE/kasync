@@ -31,6 +31,8 @@ class FutureBase
 public:
     FutureBase();
     FutureBase(const FutureBase &other);
+    virtual ~FutureBase();
+
     void setFinished();
     bool isFinished() const;
     void waitForFinished();

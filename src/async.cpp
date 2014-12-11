@@ -28,11 +28,18 @@
 
 using namespace Async;
 
-JobBase::JobBase(JobBase::JobType jobType, JobBase* prev)
-    : mPrev(prev)
-    , mResult(0)
-    , mJobType(jobType)
+JobBase::JobBase(Executor *executor)
+    : mExecutor(executor)
 {
+}
+
+JobBase::~JobBase()
+{
+}
+
+void JobBase::exec()
+{
+    mExecutor->exec();
 }
 
 
@@ -45,6 +52,10 @@ FutureBase::FutureBase()
 FutureBase::FutureBase(const Async::FutureBase &other)
     : mFinished(other.mFinished)
     , mWaitLoop(other.mWaitLoop)
+{
+}
+
+FutureBase::~FutureBase()
 {
 }
 
