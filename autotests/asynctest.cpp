@@ -80,8 +80,9 @@ void AsyncTest::testAsyncPromises()
                            [&]() {
                               future.setValue(42);
                               future.setFinished();
-                              timer->deleteLater();
                            });
+          QObject::connect(timer, &QTimer::timeout,
+                           timer, &QObject::deleteLater);
           timer->setSingleShot(true);
           timer->start(200);
           return future;

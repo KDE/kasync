@@ -34,38 +34,51 @@
 
 namespace Async {
 
+class JobBase;
+
 template<typename Out, typename ... In>
 class Job;
 
 template<typename Out, typename ... In>
 Job<Out, In ...> start(const std::function<Async::Future<Out>(In ...)> &func);
 
+namespace Private
+{
+    template<typename Out, typename ... In>
+    Async::Future<Out>* doExec(Job<Out, In ...> *job, const In & ... args);
+}
 
 class JobBase
 {
+    template<typename Out, typename ... In>
+    friend Async::Future<Out>* Private::doExec(Job<Out, In ...> *job, const In & ... args);
+
+    template<typename Out, typename ... In>
+    friend class Job;
+
+protected:
+    enum JobType {
+        Then,
+        Each
+    };
+
 public:
-    JobBase(JobBase *prev = nullptr)
+    JobBase(JobType jobType, JobBase *prev = nullptr)
     : mPrev(prev)
     , mResult(0)
+    , mJobType(jobType)
     {}
 
     virtual void exec() = 0;
 
-public:
+protected:
     JobBase *mPrev;
     void *mResult;
+
+    JobType mJobType;
 };
 
-namespace Private {
 
-    template<typename Out, typename In>
-    typename std::enable_if<!std::is_void<In>::value, void>::type
-    doExec(JobBase *prev, JobBase *jobBase);
-
-    template<typename Out, typename ... In>
-    typename std::enable_if<sizeof...(In) == 0, void>::type
-    doExec(JobBase *prev, JobBase *jobBase, int * /* disambiguate */ = 0);
-}
 
 template<typename Out, typename ... In>
 class Job : public JobBase
@@ -76,20 +89,25 @@ class Job : public JobBase
     template<typename Out_, typename ... In_, typename F_>
     friend Job<Out_, In_ ...> start(F_ func);
 
+    typedef Out OutType;
+    typedef typename std::tuple_element<0, std::tuple<In ..., void>>::type InType;
+
 public:
     ~Job()
     {
-        // Can't delete in JobBase, since we don't know the type
-        // and deleting void* is undefined
         delete reinterpret_cast<Async::Future<Out>*>(mResult);
     }
 
     template<typename Out_, typename ... In_, typename F>
     Job<Out_, In_ ...> then(F func)
     {
-        Job<Out_, In_ ...> job(this);
-        job.mFunc = func;
-        return job;
+        return Job<Out_, In_ ...>::create(func, JobBase::Then, this);
+    }
+
+    template<typename Out_, typename ... In_, typename F>
+    Job<Out_, In_ ...> each(F func)
+    {
+        return Job<Out_, In_ ...>::create(func, JobBase::Each, this);
     }
 
     Async::Future<Out> result() const
@@ -97,16 +115,34 @@ public:
         return *reinterpret_cast<Async::Future<Out>*>(mResult);
     }
 
-
     void exec()
     {
-        Async::Private::doExec<Out, In ...>(mPrev, this);
+        Async::Future<InType> *in = nullptr;
+        if (mPrev) {
+            mPrev->exec();
+            in = reinterpret_cast<Async::Future<InType>*>(mPrev->mResult);
+            assert(in->isFinished());
+        }
+
+        Job<Out, In ...> *job = dynamic_cast<Job<Out, In ...>*>(this);
+        Async::Future<Out> *out = Private::doExec<Out, In ...>(this, in ? in->value() : In() ...);
+        out->waitForFinished();
+        job->mResult = reinterpret_cast<void*>(out);
     }
 
 private:
-    Job(JobBase *parent = nullptr)
-        : JobBase(parent)
-    {}
+    Job(JobBase::JobType jobType, JobBase *parent = nullptr)
+        : JobBase(jobType, parent)
+    {
+    }
+
+    template<typename F>
+    static Job<Out, In ... > create(F func, JobBase::JobType jobType, JobBase *parent = nullptr)
+    {
+        Job<Out, In ...> job(jobType, parent);
+        job.mFunc = func;
+        return job;
+    }
 
 public:
     std::function<Async::Future<Out>(In ...)> mFunc;
@@ -115,43 +151,16 @@ public:
 template<typename Out, typename ... In, typename F>
 Job<Out, In ...> start(F func)
 {
-    Job<Out, In ...> job;
-    job.mFunc = std::function<Async::Future<Out>(In ...)>(func);
-    return job;
+    return Job<Out, In ...>::create(func, JobBase::Then);
 }
 
 } // namespace Async
 
-template<typename Out, typename In>
-typename std::enable_if<!std::is_void<In>::value, void>::type
-Async::Private::doExec(JobBase *prev, JobBase *jobBase)
-{
-    prev->exec();
-    Async::Future<In> *in = reinterpret_cast<Async::Future<In>*>(prev->mResult);
-    assert(in->isFinished());
-
-    Job<Out, In> *job = dynamic_cast<Job<Out, In>*>(jobBase);
-    Async::Future<Out> *out = new Async::Future<Out>(job->mFunc(in->value()));
-    out->waitForFinished();
-    job->mResult = reinterpret_cast<void*>(out);
-};
-
 template<typename Out, typename ... In>
-typename std::enable_if<sizeof...(In) == 0, void>::type
-Async::Private::doExec(JobBase *prev, JobBase *jobBase, int * /* disambiguation */ = 0)
+Async::Future<Out>* Async::Private::doExec(Job<Out, In ...> *job, const In & ... args)
 {
-    if (prev) {
-        prev->exec();
-        Async::Future<void> *in = reinterpret_cast<Async::Future<void>*>(prev->mResult);
-        assert(in->isFinished());
-    }
-
-    Job<Out> *job = dynamic_cast<Job<Out>*>(jobBase);
-    Async::Future<Out> *out = new Async::Future<Out>(job->mFunc());
-    out->waitForFinished();
-    job->mResult = reinterpret_cast<void*>(out);
+    return new Async::Future<Out>(job->mFunc(args ...));
 };
-
 
 #endif // ASYNC_H
 
