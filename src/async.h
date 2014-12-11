@@ -80,10 +80,6 @@ template<typename Out, typename ... In>
 class ThenExecutor:  public Executor
 {
 
-    typedef Out OutType;
-    typedef typename std::tuple_element<0, std::tuple<In ..., void>>::type InType;
-
-
 public:
     ThenExecutor(ThenTask<Out, In ...> then, Executor *parent = nullptr)
         : Executor(parent)
@@ -93,10 +89,12 @@ public:
 
     void exec()
     {
-        Async::Future<InType> *in = 0;
+        typedef typename std::tuple_element<0, std::tuple<In ..., void>>::type PrevOut;
+
+        Async::Future<PrevOut> *in = 0;
         if (mPrev) {
             mPrev->exec();
-            in = static_cast<Async::Future<InType>*>(mPrev->result());
+            in = static_cast<Async::Future<PrevOut>*>(mPrev->result());
             assert(in->isFinished());
         }
 
@@ -133,12 +131,39 @@ public:
             future.waitForFinished();
             out->setValue(out->value() + future.value());
         }
+        out->setFinished();
 
         mResult = out;
     }
 
 private:
     std::function<void(const In&, Async::Future<Out>&)> mFunc;
+};
+
+template<typename Out, typename In>
+class ReduceExecutor : public Executor
+{
+public:
+    ReduceExecutor(ReduceTask<Out, In> reduce, Executor *parent = nullptr)
+        : Executor(parent)
+        , mFunc(reduce)
+    {
+    }
+
+    void exec()
+    {
+        assert(mPrev);
+        mPrev->exec();
+        Async::Future<In> *in = static_cast<Async::Future<In>*>(mPrev->result());
+
+        auto out = new Async::Future<Out>();
+        mFunc(in->value(), *out);
+        out->waitForFinished();
+        mResult = out;
+    }
+
+private:
+    std::function<void(const In &, Async::Future<Out> &)> mFunc;
 };
 
 class JobBase
@@ -187,8 +212,8 @@ public:
     Job<OutOther, InOther> reduce(ReduceTask<OutOther, InOther> func)
     {
         static_assert(Async::detail::isIterable<Out>::value,
-                      "The result type of 'Reduce' task must be a list or an array.");
-        //return Job<Out_, In_>::create(func, new ReduceEx, this);
+                      "The 'Result' task can only be connected to a job that returns a list or array");
+        return Job<OutOther, InOther>(new ReduceExecutor<OutOther, InOther>(func, mExecutor));
     }
 
     Async::Future<Out> result() const
@@ -212,8 +237,7 @@ private:
 template<typename Out, typename ... In>
 Async::Job<Out, In ...> Async::start(ThenTask<Out, In ...> func)
 {
-    Executor *exec = new ThenExecutor<Out, In ...>(func);
-    return Job<Out, In ...>(exec);
+    return Job<Out, In ...>(new ThenExecutor<Out, In ...>(func));
 }
 
 #endif // ASYNC_H

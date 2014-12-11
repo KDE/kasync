@@ -41,6 +41,7 @@ private Q_SLOTS:
     void testSyncPromises();
     void testAsyncPromises();
     void testSyncEach();
+    void testSyncReduce();
 };
 
 void AsyncTest::testSyncPromises()
@@ -65,27 +66,29 @@ void AsyncTest::testSyncPromises()
     job.exec();
     Async::Future<QString> future = job.result();
 
+    QVERIFY(future.isFinished());
     QCOMPARE(future.value(), QString::fromLatin1("RESULT IS 42"));
 }
 
 void AsyncTest::testAsyncPromises()
 {
     auto job = Async::start<int>(
-      [](Async::Future<int> &future) {
-          QTimer *timer = new QTimer();
-          QObject::connect(timer, &QTimer::timeout,
-                           [&]() {
-                              future.setValue(42);
-                              future.setFinished();
-                           });
-          QObject::connect(timer, &QTimer::timeout,
-                           timer, &QObject::deleteLater);
-          timer->setSingleShot(true);
-          timer->start(200);
-      });
+        [](Async::Future<int> &future) {
+            QTimer *timer = new QTimer();
+            QObject::connect(timer, &QTimer::timeout,
+                             [&]() {
+                                future.setValue(42);
+                                future.setFinished();
+                             });
+            QObject::connect(timer, &QTimer::timeout,
+                             timer, &QObject::deleteLater);
+            timer->setSingleShot(true);
+            timer->start(200);
+        });
 
     job.exec();
     Async::Future<int> future = job.result();
+    QVERIFY(future.isFinished());
     QCOMPARE(future.value(), 42);
 }
 
@@ -105,8 +108,31 @@ void AsyncTest::testSyncEach()
     job.exec();
     Async::Future<QList<int>> future = job.result();
     const QList<int> expected({ 2, 3, 4, 5 });
+    QVERIFY(future.isFinished());
     QCOMPARE(future.value(), expected);
 }
+
+void AsyncTest::testSyncReduce()
+{
+    auto job = Async::start<QList<int>>(
+        [](Async::Future<QList<int>> &future) {
+            future.setValue(QList<int>{ 1, 2, 3, 4 });
+            future.setFinished();
+        })
+    .reduce<int, QList<int>>(
+        [](const QList<int> &list, Async::Future<int> &future) {
+            int sum = 0;
+            for (int i : list) sum += i;
+            future.setValue(sum);
+            future.setFinished();
+        });
+
+    job.exec();
+    Async::Future<int> future = job.result();
+    QVERIFY(future.isFinished());
+    QCOMPARE(future.value(), 10);
+}
+
 
 
 QTEST_MAIN(AsyncTest);
