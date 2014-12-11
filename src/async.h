@@ -28,12 +28,16 @@
 #include <iostream>
 #include <cassert>
 #include <iterator>
+#include <boost/graph/graph_concepts.hpp>
 
 #include "future.h"
 #include "async_impl.h"
 
 
 namespace Async {
+
+template<typename PrevOut, typename Out, typename ... In>
+class Executor;
 
 class JobBase;
 
@@ -50,17 +54,19 @@ using ReduceTask = typename detail::identity<std::function<void(In, Async::Futur
 template<typename Out, typename ... In>
 Job<Out, In ...> start(ThenTask<Out, In ...> func);
 
-class Executor
+template<typename ... T>
+struct PreviousOut {
+    using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
+};
+
+
+class ExecutorBase
 {
+    template<typename PrevOut, typename Out, typename ... In>
+    friend class Executor;
 
 public:
-    Executor(Executor *parent)
-      : mPrev(parent)
-      , mResult(0)
-    {
-    }
-
-    virtual ~Executor()
+    virtual ~ExecutorBase()
     {
         delete mResult;
     }
@@ -72,99 +78,111 @@ public:
         return mResult;
     }
 
-    Executor *mPrev;
+protected:
+    ExecutorBase(ExecutorBase *parent)
+      : mPrev(parent)
+      , mResult(0)
+    {
+    }
+
+    ExecutorBase *mPrev;
     FutureBase *mResult;
 };
 
-template<typename Out, typename ... In>
-class ThenExecutor:  public Executor
+template<typename PrevOut, typename Out, typename ... In>
+class Executor : public ExecutorBase
 {
-
-public:
-    ThenExecutor(ThenTask<Out, In ...> then, Executor *parent = nullptr)
-        : Executor(parent)
-        , mFunc(then)
+protected:
+    Executor(ExecutorBase *parent)
+        : ExecutorBase(parent)
     {
+    }
+
+    Async::Future<PrevOut>* chainup()
+    {
+        if (mPrev) {
+            mPrev->exec();
+            auto future = static_cast<Async::Future<PrevOut>*>(mPrev->result());
+            assert(future->isFinished());
+            return future;
+        } else {
+            return 0;
+        }
+    }
+
+    std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
+};
+
+template<typename Out, typename ... In>
+class ThenExecutor: public Executor<typename PreviousOut<In ...>::type, Out, In ...>
+{
+public:
+    ThenExecutor(ThenTask<Out, In ...> then, ExecutorBase *parent = nullptr)
+        : Executor<typename     PreviousOut<In ...>::type, Out, In ...>(parent)
+    {
+        this->mFunc = then;
     }
 
     void exec()
     {
-        typedef typename std::tuple_element<0, std::tuple<In ..., void>>::type PrevOut;
-
-        Async::Future<PrevOut> *in = 0;
-        if (mPrev) {
-            mPrev->exec();
-            in = static_cast<Async::Future<PrevOut>*>(mPrev->result());
-            assert(in->isFinished());
-        }
+        auto in = this->chainup();
+        (void)in; // supress 'unused variable' warning when In is void
 
         auto out = new Async::Future<Out>();
-        mFunc(in ? in->value() : In() ..., *out);
+        this->mFunc(in ? in->value() : In() ..., *out);
         out->waitForFinished();
-        mResult = out;
+        this->mResult = out;
     }
-
-private:
-    std::function<void(const In& ..., Async::Future<Out>&)> mFunc;
 };
 
 template<typename PrevOut, typename Out, typename In>
-class EachExecutor : public Executor
+class EachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
-    EachExecutor(EachTask<Out, In> each, Executor *parent = nullptr)
-        : Executor(parent)
-        , mFunc(each)
+    EachExecutor(EachTask<Out, In> each, ExecutorBase *parent)
+        : Executor<PrevOut, Out, In>(parent)
     {
+        this->mFunc = each;
     }
 
     void exec()
     {
-        assert(mPrev);
-        mPrev->exec();
-        Async::Future<PrevOut> *in = static_cast<Async::Future<PrevOut>*>(mPrev->result());
+        auto in = this->chainup();
 
         auto *out = new Async::Future<Out>();
         for (auto arg : in->value()) {
             Async::Future<Out> future;
-            mFunc(arg, future);
+            this->mFunc(arg, future);
             future.waitForFinished();
             out->setValue(out->value() + future.value());
         }
         out->setFinished();
 
-        mResult = out;
+        this->mResult = out;
     }
-
-private:
-    std::function<void(const In&, Async::Future<Out>&)> mFunc;
 };
 
 template<typename Out, typename In>
-class ReduceExecutor : public Executor
+class ReduceExecutor : public Executor<In, Out, In>
 {
 public:
-    ReduceExecutor(ReduceTask<Out, In> reduce, Executor *parent = nullptr)
-        : Executor(parent)
-        , mFunc(reduce)
+    ReduceExecutor(ReduceTask<Out, In> reduce, ExecutorBase *parent)
+        : Executor<In, Out, In>(parent)
     {
+        this->mFunc = reduce;
     }
 
     void exec()
     {
-        assert(mPrev);
-        mPrev->exec();
-        Async::Future<In> *in = static_cast<Async::Future<In>*>(mPrev->result());
+        auto in = this->chainup();
 
         auto out = new Async::Future<Out>();
-        mFunc(in->value(), *out);
+        this->mFunc(in->value(), *out);
         out->waitForFinished();
-        mResult = out;
+        this->mResult = out;
     }
-
-private:
-    std::function<void(const In &, Async::Future<Out> &)> mFunc;
 };
+
 
 class JobBase
 {
@@ -172,13 +190,13 @@ class JobBase
     friend class Job;
 
 public:
-    JobBase(Executor *executor);
+    JobBase(ExecutorBase *executor);
     ~JobBase();
 
     void exec();
 
 protected:
-    Executor *mExecutor;
+    ExecutorBase *mExecutor;
 };
 
 template<typename Out, typename ... In>
@@ -194,15 +212,14 @@ public:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func)
     {
-        Executor *exec = new ThenExecutor<OutOther, InOther ...>(func, mExecutor);
-        return Job<OutOther, InOther ...>(exec);
+        return Job<OutOther, InOther ...>(new ThenExecutor<OutOther, InOther ...>(func, mExecutor));
     }
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(EachTask<OutOther, InOther> func)
     {
         static_assert(detail::isIterable<Out>::value,
-                      "The 'Each' task can only be connected to a job that returns a list or array.");
+                      "The 'Each' task can only be connected to a job that returns a list or an array.");
         static_assert(detail::isIterable<OutOther>::value,
                       "The result type of 'Each' task must be a list or an array.");
         return Job<OutOther, InOther>(new EachExecutor<Out, OutOther, InOther>(func, mExecutor));
@@ -212,7 +229,9 @@ public:
     Job<OutOther, InOther> reduce(ReduceTask<OutOther, InOther> func)
     {
         static_assert(Async::detail::isIterable<Out>::value,
-                      "The 'Result' task can only be connected to a job that returns a list or array");
+                      "The 'Result' task can only be connected to a job that returns a list or an array");
+        static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
+                      "The return type of previous task must be compatible with input type of this task");
         return Job<OutOther, InOther>(new ReduceExecutor<OutOther, InOther>(func, mExecutor));
     }
 
@@ -222,14 +241,13 @@ public:
     }
 
 private:
-    Job(Executor *executor)
+    Job(ExecutorBase *executor)
         : JobBase(executor)
     {
     }
 };
 
 } // namespace Async
-
 
 
 // ********** Out of line definitions ****************

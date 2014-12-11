@@ -28,7 +28,7 @@
 
 using namespace Async;
 
-JobBase::JobBase(Executor *executor)
+JobBase::JobBase(ExecutorBase *executor)
     : mExecutor(executor)
 {
 }
