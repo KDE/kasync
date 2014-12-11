@@ -39,8 +39,8 @@ class JobBase;
 template<typename Out, typename ... In>
 class Job;
 
-template<typename Out, typename ... In>
-Job<Out, In ...> start(const std::function<Async::Future<Out>(In ...)> &func);
+template<typename Out, typename ... In, typename F>
+Job<Out, In ...> start(F func);
 
 namespace Private
 {
@@ -51,9 +51,6 @@ namespace Private
 class JobBase
 {
     template<typename Out, typename ... In>
-    friend Async::Future<Out>* Private::doExec(Job<Out, In ...> *job, const In & ... args);
-
-    template<typename Out, typename ... In>
     friend class Job;
 
 protected:
@@ -63,22 +60,14 @@ protected:
     };
 
 public:
-    JobBase(JobType jobType, JobBase *prev = nullptr)
-    : mPrev(prev)
-    , mResult(0)
-    , mJobType(jobType)
-    {}
-
+    JobBase(JobType jobType, JobBase *prev = nullptr);
     virtual void exec() = 0;
 
 protected:
     JobBase *mPrev;
     void *mResult;
-
     JobType mJobType;
 };
-
-
 
 template<typename Out, typename ... In>
 class Job : public JobBase
@@ -115,20 +104,7 @@ public:
         return *reinterpret_cast<Async::Future<Out>*>(mResult);
     }
 
-    void exec()
-    {
-        Async::Future<InType> *in = nullptr;
-        if (mPrev) {
-            mPrev->exec();
-            in = reinterpret_cast<Async::Future<InType>*>(mPrev->mResult);
-            assert(in->isFinished());
-        }
-
-        Job<Out, In ...> *job = dynamic_cast<Job<Out, In ...>*>(this);
-        Async::Future<Out> *out = Private::doExec<Out, In ...>(this, in ? in->value() : In() ...);
-        out->waitForFinished();
-        job->mResult = reinterpret_cast<void*>(out);
-    }
+    void exec();
 
 private:
     Job(JobBase::JobType jobType, JobBase *parent = nullptr)
@@ -137,30 +113,56 @@ private:
     }
 
     template<typename F>
-    static Job<Out, In ... > create(F func, JobBase::JobType jobType, JobBase *parent = nullptr)
-    {
-        Job<Out, In ...> job(jobType, parent);
-        job.mFunc = func;
-        return job;
-    }
+    static Job<Out, In ... > create(F func, JobBase::JobType jobType, JobBase *parent = nullptr);
 
 public:
     std::function<Async::Future<Out>(In ...)> mFunc;
 };
 
+
+} // namespace Async
+
+
+
+// ********** Out of line definitions ****************
+
 template<typename Out, typename ... In, typename F>
-Job<Out, In ...> start(F func)
+Async::Job<Out, In ...> Async::start(F func)
 {
     return Job<Out, In ...>::create(func, JobBase::Then);
 }
-
-} // namespace Async
 
 template<typename Out, typename ... In>
 Async::Future<Out>* Async::Private::doExec(Job<Out, In ...> *job, const In & ... args)
 {
     return new Async::Future<Out>(job->mFunc(args ...));
 };
+
+template<typename Out, typename ... In>
+void Async::Job<Out, In ...>::exec()
+{
+    Async::Future<InType> *in = nullptr;
+    if (mPrev) {
+        mPrev->exec();
+        in = reinterpret_cast<Async::Future<InType>*>(mPrev->mResult);
+        assert(in->isFinished());
+    }
+
+    Job<Out, In ...> *job = dynamic_cast<Job<Out, In ...>*>(this);
+    Async::Future<Out> *out = Private::doExec<Out, In ...>(this, in ? in->value() : In() ...);
+    out->waitForFinished();
+    job->mResult = reinterpret_cast<void*>(out);
+}
+
+template<typename Out, typename ... In>
+template<typename F>
+Async::Job<Out, In ...> Async::Job<Out, In ...>::create(F func, Async::JobBase::JobType jobType, Async::JobBase* parent)
+{
+    Job<Out, In ...> job(jobType, parent);
+    job.mFunc = func;
+    return job;
+}
+
 
 #endif // ASYNC_H
 
