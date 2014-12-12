@@ -195,8 +195,8 @@ class Job : public JobBase
     template<typename OutOther, typename ... InOther>
     friend class Job;
 
-    template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> start(Async::ThenTask<OutOther, InOther ...> func);
+    template<typename OutOther>
+    friend Job<OutOther> start(Async::ThenTask<OutOther> func);
 
 public:
     template<typename OutOther, typename ... InOther>
@@ -244,10 +244,10 @@ private:
 
 namespace Async {
 
-template<typename Out, typename ... In>
-Job<Out, In ...> start(ThenTask<Out, In ...> func)
+template<typename Out>
+Job<Out> start(ThenTask<Out> func)
 {
-    return Job<Out, In ...>(new Private::ThenExecutor<Out, In ...>(func));
+    return Job<Out>(new Private::ThenExecutor<Out>(func));
 }
 
 namespace Private {
