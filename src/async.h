@@ -119,6 +119,18 @@ public:
 
 } // namespace Private
 
+/**
+ * Start an asynchronous job sequence.
+ *
+ * Async::start() is your starting point to build a chain of jobs to be executed
+ * asynchronously.
+ *
+ * @param func An asynchronous function to be executed. The function must have
+ *             void return type, and accept exactly one argument of type @p Async::Future<In>,
+ *             where @p In is type of the result.
+ */
+template<typename Out>
+Job<Out> start(ThenTask<Out> func);
 
 class JobBase
 {
@@ -135,6 +147,48 @@ protected:
     Private::ExecutorBase *mExecutor;
 };
 
+/**
+ * An Asynchronous job
+ *
+ * A single instance of Job represents a single method that will be executed
+ * asynchrously. The Job is started by @p Job::exec(), which returns @p Async::Future
+ * immediatelly. The Future will be set to finished state once the asynchronous
+ * task has finished. You can use @p Async::Future::waitForFinished() to wait for
+ * for the Future in blocking manner.
+ *
+ * It is possible to chain multiple Jobs one after another in different fashion
+ * (sequential, parallel, etc.). Calling Job::exec() will then return a pending
+ * @p Async::Future, and will execute the entire chain of jobs.
+ *
+ * @code
+ * auto job = Job::start<QList<int>>(
+ *     [](Async::Future<QList<int>> &future) {
+ *         MyREST::PendingUsers *pu = MyREST::requestListOfUsers();
+ *         QObject::connect(pu, &PendingOperation::finished,
+ *                          [&](PendingOperation *pu) {
+ *                              future->setValue(dynamic_cast<MyREST::PendingUsers*>(pu)->userIds());
+ *                              future->setFinished();
+ *                          });
+ *      })
+ * .each<QList<MyREST::User>, int>(
+ *      [](const int &userId, Async::Future<QList<MyREST::User>> &future) {
+ *          MyREST::PendingUser *pu = MyREST::requestUserDetails(userId);
+ *          QObject::connect(pu, &PendingOperation::finished,
+ *                           [&](PendingOperation *pu) {
+ *                              future->setValue(Qlist<MyREST::User>() << dynamic_cast<MyREST::PendingUser*>(pu)->user());
+ *                              future->setFinished();
+ *                           });
+ *      });
+ *
+ * Async::Future<QList<MyREST::User>> usersFuture = job.exec();
+ * usersFuture.waitForFinished();
+ * QList<MyRest::User> users = usersFuture.value();
+ * @endcode
+ *
+ * In the example above, calling @p job.exec() will first invoke the first job,
+ * which will retrieve a list of IDs, and then will invoke the second function
+ * for each single entry in the list returned by the first function.
+ */
 template<typename Out, typename ... In>
 class Job : public JobBase
 {
