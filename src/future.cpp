@@ -25,13 +25,11 @@ using namespace Async;
 
 FutureBase::FutureBase()
     : mFinished(false)
-    , mWaitLoop(nullptr)
 {
 }
 
 FutureBase::FutureBase(const Async::FutureBase &other)
     : mFinished(other.mFinished)
-    , mWaitLoop(other.mWaitLoop)
 {
 }
 

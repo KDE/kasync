@@ -37,19 +37,6 @@ public:
     ~AsyncTest()
     {}
 
-private:
-    template<typename T>
-    bool waitForFuture(const Async::Future<T> &f)
-    {
-        QEventLoop eventLoop;
-        Async::FutureWatcher<T> watcher;
-        connect(&watcher, &Async::FutureWatcher<T>::futureReady,
-                &eventLoop, &QEventLoop::quit);
-        watcher.setFuture(f);
-        eventLoop.exec();
-        return true;
-    }
-
 private Q_SLOTS:
     void testSyncPromises();
     void testAsyncPromises();
@@ -100,7 +87,7 @@ void AsyncTest::testAsyncPromises()
 
     Async::Future<int> future = job.exec();
 
-    QVERIFY(waitForFuture<int>(future));
+    future.waitForFinished();
     QCOMPARE(future.value(), 42);
 }
 

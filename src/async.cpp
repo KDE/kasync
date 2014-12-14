@@ -48,3 +48,4 @@ JobBase::JobBase(Private::ExecutorBase *executor)
 JobBase::~JobBase()
 {
 }
+

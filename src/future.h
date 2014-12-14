@@ -29,6 +29,7 @@ class QEventLoop;
 #include <QSharedDataPointer>
 #include <QPointer>
 #include <QVector>
+#include <QEventLoop>
 
 namespace Async {
 
@@ -45,11 +46,13 @@ protected:
     FutureBase(const FutureBase &other);
 
     bool mFinished;
-    QEventLoop *mWaitLoop;
 };
 
 template<typename T>
 class FutureWatcher;
+
+template<typename T>
+class Future;
 
 template<typename T>
 class FutureGeneric : public FutureBase
@@ -67,15 +70,28 @@ public:
         }
     }
 
+    void waitForFinished()
+    {
+        if (isFinished()) {
+            return;
+        }
+        FutureWatcher<T> watcher;
+        QEventLoop eventLoop;
+        QObject::connect(&watcher, &Async::FutureWatcher<T>::futureReady,
+                         &eventLoop, &QEventLoop::quit);
+        watcher.setFuture(*static_cast<Async::Future<T>*>(this));
+        eventLoop.exec();
+    }
+
 protected:
     FutureGeneric()
-    : FutureBase()
-    , d(new Private)
+        : FutureBase()
+        , d(new Private)
     {}
 
     FutureGeneric(const FutureGeneric<T> &other)
-    : FutureBase(other)
-    , d(other.d)
+        : FutureBase(other)
+        , d(other.d)
     {}
 
     class Private : public QSharedData

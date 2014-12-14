@@ -251,8 +251,7 @@ public:
 private:
     Job(Private::ExecutorBase *executor)
         : JobBase(executor)
-    {
-    }
+    {}
 };
 
 } // namespace Async
