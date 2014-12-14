@@ -37,6 +37,19 @@ public:
     ~AsyncTest()
     {}
 
+private:
+    template<typename T>
+    bool waitForFuture(const Async::Future<T> &f)
+    {
+        QEventLoop eventLoop;
+        Async::FutureWatcher<T> watcher;
+        connect(&watcher, &Async::FutureWatcher<T>::futureReady,
+                &eventLoop, &QEventLoop::quit);
+        watcher.setFuture(f);
+        eventLoop.exec();
+        return true;
+    }
+
 private Q_SLOTS:
     void testSyncPromises();
     void testAsyncPromises();
@@ -63,8 +76,7 @@ void AsyncTest::testSyncPromises()
             f.setFinished();
         });
 
-    job.exec();
-    Async::Future<QString> future = job.result();
+    Async::Future<QString> future = job.exec();
 
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), QString::fromLatin1("RESULT IS 42"));
@@ -86,9 +98,9 @@ void AsyncTest::testAsyncPromises()
             timer->start(200);
         });
 
-    job.exec();
-    Async::Future<int> future = job.result();
-    QVERIFY(future.isFinished());
+    Async::Future<int> future = job.exec();
+
+    QVERIFY(waitForFuture<int>(future));
     QCOMPARE(future.value(), 42);
 }
 
@@ -105,8 +117,8 @@ void AsyncTest::testSyncEach()
             future.setFinished();
         });
 
-    job.exec();
-    Async::Future<QList<int>> future = job.result();
+    Async::Future<QList<int>> future = job.exec();
+
     const QList<int> expected({ 2, 3, 4, 5 });
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), expected);
@@ -127,8 +139,8 @@ void AsyncTest::testSyncReduce()
             future.setFinished();
         });
 
-    job.exec();
-    Async::Future<int> future = job.result();
+    Async::Future<int> future = job.exec();
+
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), 10);
 }

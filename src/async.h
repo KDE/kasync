@@ -25,13 +25,14 @@
 #include <functional>
 #include <list>
 #include <type_traits>
-#include <iostream>
 #include <cassert>
 #include <iterator>
-#include <boost/graph/graph_concepts.hpp>
 
 #include "future.h"
 #include "async_impl.h"
+
+#include <QVector>
+#include <QObject>
 
 
 namespace Async {
@@ -86,11 +87,18 @@ class Executor : public ExecutorBase
 protected:
     Executor(ExecutorBase *parent)
         : ExecutorBase(parent)
+        , mPrevFuture(0)
+        , mPrevFutureWatcher(0)
     {}
     virtual ~Executor() {}
     inline Async::Future<PrevOut>* chainup();
+    virtual void previousFutureReady() = 0;
+
+    void exec();
 
     std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
+    Async::Future<PrevOut> *mPrevFuture;
+    Async::FutureWatcher<PrevOut> *mPrevFutureWatcher;
 };
 
 template<typename Out, typename ... In>
@@ -98,7 +106,10 @@ class ThenExecutor: public Executor<typename PreviousOut<In ...>::type, Out, In 
 {
 public:
     ThenExecutor(ThenTask<Out, In ...> then, ExecutorBase *parent = nullptr);
-    void exec();
+    void previousFutureReady();
+
+private:
+    Async::FutureWatcher<typename PreviousOut<In ...>::type> *mFutureWatcher;
 };
 
 template<typename PrevOut, typename Out, typename In>
@@ -106,7 +117,10 @@ class EachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
     EachExecutor(EachTask<Out, In> each, ExecutorBase *parent);
-    void exec();
+    void previousFutureReady();
+
+private:
+    QVector<Async::FutureWatcher<PrevOut>*> mFutureWatchers;
 };
 
 template<typename Out, typename In>
@@ -114,7 +128,7 @@ class ReduceExecutor : public Executor<In, Out, In>
 {
 public:
     ReduceExecutor(ReduceTask<Out, In> reduce, ExecutorBase *parent);
-    void exec();
+    void previousFutureReady();
 };
 
 } // namespace Private
@@ -140,8 +154,6 @@ class JobBase
 public:
     JobBase(Private::ExecutorBase *executor);
     ~JobBase();
-
-    void exec();
 
 protected:
     Private::ExecutorBase *mExecutor;
@@ -225,6 +237,12 @@ public:
         return Job<OutOther, InOther>(new Private::ReduceExecutor<OutOther, InOther>(func, mExecutor));
     }
 
+    Async::Future<Out> exec()
+    {
+        mExecutor->exec();
+        return result();
+    }
+
     Async::Future<Out> result() const
     {
         return *static_cast<Async::Future<Out>*>(mExecutor->result());
@@ -257,11 +275,28 @@ Future<PrevOut>* Executor<PrevOut, Out, In ...>::chainup()
 {
     if (mPrev) {
         mPrev->exec();
-        auto future = static_cast<Async::Future<PrevOut>*>(mPrev->result());
-        assert(future->isFinished());
-        return future;
+        return static_cast<Async::Future<PrevOut>*>(mPrev->result());
     } else {
         return 0;
+    }
+}
+
+template<typename PrevOut, typename Out, typename ... In>
+void Executor<PrevOut, Out, In ...>::exec()
+{
+    mPrevFuture = chainup();
+    mResult = new Async::Future<Out>();
+    if (!mPrevFuture || mPrevFuture->isFinished()) {
+        previousFutureReady();
+    } else {
+        auto futureWatcher = new Async::FutureWatcher<PrevOut>();
+        QObject::connect(futureWatcher, &Async::FutureWatcher<PrevOut>::futureReady,
+                         [futureWatcher, this]() {
+                             assert(futureWatcher->future().isFinished());
+                             futureWatcher->deleteLater();
+                             previousFutureReady();
+                         });
+        futureWatcher->setFuture(*mPrevFuture);
     }
 }
 
@@ -273,15 +308,13 @@ ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ExecutorBase
 }
 
 template<typename Out, typename ... In>
-void ThenExecutor<Out, In ...>::exec()
+void ThenExecutor<Out, In ...>::previousFutureReady()
 {
-    auto in = this->chainup();
-    (void)in; // supress 'unused variable' warning when In is void
-
-    auto out = new Async::Future<Out>();
-    this->mFunc(in ? in->value() : In() ..., *out);
-    out->waitForFinished();
-    this->mResult = out;
+    if (this->mPrevFuture) {
+            assert(this->mPrevFuture->isFinished());
+    }
+    this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...,
+                *static_cast<Async::Future<Out>*>(this->mResult));
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -292,20 +325,33 @@ EachExecutor<PrevOut, Out, In>::EachExecutor(EachTask<Out, In> each, ExecutorBas
 }
 
 template<typename PrevOut, typename Out, typename In>
-void EachExecutor<PrevOut, Out, In>::exec()
+void EachExecutor<PrevOut, Out, In>::previousFutureReady()
 {
-    auto in = this->chainup();
+    assert(this->mPrevFuture->isFinished());
+    auto out = static_cast<Async::Future<Out>*>(this->mResult);
+    if (this->mPrevFuture->value().isEmpty()) {
+        out->setFinished();
+        return;
+    }
 
-    auto *out = new Async::Future<Out>();
-    for (auto arg : in->value()) {
+    for (auto arg : this->mPrevFuture->value()) {
         Async::Future<Out> future;
         this->mFunc(arg, future);
-        future.waitForFinished();
-        out->setValue(out->value() + future.value());
+        auto fw = new Async::FutureWatcher<Out>();
+        mFutureWatchers.append(fw);
+        QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
+                         [out, future, fw, this]() {
+                             assert(future.isFinished());
+                             const int index = mFutureWatchers.indexOf(fw);
+                             assert(index > -1);
+                             mFutureWatchers.removeAt(index);
+                             out->setValue(out->value() + future.value());
+                             if (mFutureWatchers.isEmpty()) {
+                                 out->setFinished();
+                             }
+                         });
+        fw->setFuture(future);
     }
-    out->setFinished();
-
-    this->mResult = out;
 }
 
 template<typename Out, typename In>
@@ -316,14 +362,10 @@ ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, ExecutorBase
 }
 
 template<typename Out, typename In>
-void ReduceExecutor<Out, In>::exec()
+void ReduceExecutor<Out, In>::previousFutureReady()
 {
-    auto in = this->chainup();
-
-    auto out = new Async::Future<Out>();
-    this->mFunc(in->value(), *out);
-    out->waitForFinished();
-    this->mResult = out;
+    assert(this->mPrevFuture->isFinished());
+    this->mFunc(this->mPrevFuture->value(), *static_cast<Async::Future<Out>*>(this->mResult));
 }
 
 } // namespace Private

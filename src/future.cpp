@@ -19,32 +19,39 @@
  *
  */
 
-#include "async.h"
-
-#include <QCoreApplication>
-#include <QDebug>
-#include <QEventLoop>
-
+#include "future.h"
 
 using namespace Async;
 
-Private::ExecutorBase::ExecutorBase(ExecutorBase* parent)
-    : mPrev(parent)
-    , mResult(0)
+FutureBase::FutureBase()
+    : mFinished(false)
+    , mWaitLoop(nullptr)
 {
 }
 
-Private::ExecutorBase::~ExecutorBase()
-{
-    delete mResult;
-}
-
-
-JobBase::JobBase(Private::ExecutorBase *executor)
-    : mExecutor(executor)
+FutureBase::FutureBase(const Async::FutureBase &other)
+    : mFinished(other.mFinished)
+    , mWaitLoop(other.mWaitLoop)
 {
 }
 
-JobBase::~JobBase()
+FutureBase::~FutureBase()
 {
 }
+
+bool FutureBase::isFinished() const
+{
+    return mFinished;
+}
+
+FutureWatcherBase::FutureWatcherBase(QObject *parent)
+    : QObject(parent)
+{
+}
+
+FutureWatcherBase::~FutureWatcherBase()
+{
+}
+
+
+#include "future.moc"
