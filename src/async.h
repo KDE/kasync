@@ -287,7 +287,8 @@ void Executor<PrevOut, Out, In ...>::exec()
         auto futureWatcher = new Async::FutureWatcher<PrevOut>();
         QObject::connect(futureWatcher, &Async::FutureWatcher<PrevOut>::futureReady,
                          [futureWatcher, this]() {
-                             assert(futureWatcher->future().isFinished());
+                            //FIXME mFinished is not part of the d-pointer but we copy the future below
+                             // assert(futureWatcher->future().isFinished());
                              futureWatcher->deleteLater();
                              previousFutureReady();
                          });

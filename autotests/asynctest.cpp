@@ -40,6 +40,7 @@ public:
 private Q_SLOTS:
     void testSyncPromises();
     void testAsyncPromises();
+    void testAsyncPromises2();
     void testSyncEach();
     void testSyncReduce();
 };
@@ -88,6 +89,34 @@ void AsyncTest::testAsyncPromises()
     Async::Future<int> future = job.exec();
 
     future.waitForFinished();
+    QCOMPARE(future.value(), 42);
+}
+
+void AsyncTest::testAsyncPromises2()
+{
+    bool done = false;
+
+    auto job = Async::start<int>(
+        [](Async::Future<int> &future) {
+            QTimer *timer = new QTimer();
+            QObject::connect(timer, &QTimer::timeout,
+                             [&]() {
+                                future.setValue(42);
+                                future.setFinished();
+                             });
+            QObject::connect(timer, &QTimer::timeout,
+                             timer, &QObject::deleteLater);
+            timer->setSingleShot(true);
+            timer->start(200);
+        }
+    ).then<int, int>([&done](int result, Async::Future<int> &future) {
+        done = true;
+        future.setValue(result);
+        future.setFinished();
+    });
+    auto future = job.exec();
+
+    QTRY_VERIFY(done);
     QCOMPARE(future.value(), 42);
 }
 
