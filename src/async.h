@@ -142,6 +142,19 @@ public:
 template<typename Out>
 Job<Out> start(ThenTask<Out> func);
 
+
+/**
+ * A null job.
+ * 
+ * An async noop.
+ *
+ */
+template<typename Out>
+Job<Out> null()
+{
+    return Async::start<Out>([](Async::Future<Out> &future) {future.setFinished();});
+}
+
 class JobBase
 {
     template<typename Out, typename ... In>
