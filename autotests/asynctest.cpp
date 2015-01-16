@@ -41,6 +41,7 @@ private Q_SLOTS:
     void testSyncPromises();
     void testAsyncPromises();
     void testAsyncPromises2();
+    void testNestedAsync();
     void testSyncEach();
     void testSyncReduce();
 };
@@ -118,6 +119,39 @@ void AsyncTest::testAsyncPromises2()
 
     QTRY_VERIFY(done);
     QCOMPARE(future.value(), 42);
+}
+
+void AsyncTest::testNestedAsync()
+{
+    bool done = false;
+
+    auto job = Async::start<int>(
+        [](Async::Future<int> &future) {
+            auto innerJob = Async::start<int>([](Async::Future<int> &innerFuture) {
+                QTimer *timer = new QTimer();
+                QObject::connect(timer, &QTimer::timeout,
+                                [&]() {
+                                    innerFuture.setValue(42);
+                                    innerFuture.setFinished();
+                                });
+                QObject::connect(timer, &QTimer::timeout,
+                                timer, &QObject::deleteLater);
+                timer->setSingleShot(true);
+                timer->start(0);
+            }).then<void>([&future](Async::Future<void> &innerThenFuture) {
+                future.setFinished();
+                innerThenFuture.setFinished();
+            });
+            innerJob.exec();
+        }
+    ).then<int, int>([&done](int result, Async::Future<int> &future) {
+        done = true;
+        future.setValue(result);
+        future.setFinished();
+    });
+    job.exec();
+
+    QTRY_VERIFY(done);
 }
 
 void AsyncTest::testSyncEach()
