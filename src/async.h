@@ -31,6 +31,11 @@
 #include <QObject>
 
 
+/*
+ * TODO: on .then and potentially others: support for ThenTask without future argument and return value which makes it implicitly a sync continuation. Useful for typical value consumer continuations.
+ * TODO: error continuation on .then and others.
+ * TODO: instead of passing the future objects callbacks could be provided for result reporting (we can still use the future object internally
+ */
 namespace Async {
 
 template<typename PrevOut, typename Out, typename ... In>
@@ -157,6 +162,18 @@ Job<Out> null()
     return Async::start<Out>([](Async::Future<Out> &future) {future.setFinished();});
 }
 
+/**
+ * An error job.
+ * 
+ * An async error.
+ *
+ */
+template<typename Out>
+Job<Out> error(int errorCode = 1, const QString &errorMessage = QString())
+{
+    return Async::start<Out>([errorCode, errorMessage](Async::Future<Out> &future) {future.setError(errorCode, errorMessage);});
+}
+
 class JobBase
 {
     template<typename Out, typename ... In>
@@ -225,6 +242,8 @@ public:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
     {
+        //FIXME are we leaking the executor?
+        //The executor is copied with ever job instance, so use a sharedpointer?
         return Job<OutOther, InOther ...>(new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor));
     }
 
@@ -275,6 +294,7 @@ namespace Async {
 template<typename Out>
 Job<Out> start(ThenTask<Out> func)
 {
+    //FIXME we're leaking the exucutor, use a shared pointer
     return Job<Out>(new Private::ThenExecutor<Out>(func));
 }
 
@@ -287,7 +307,7 @@ Future<PrevOut>* Executor<PrevOut, Out, In ...>::chainup()
         mPrev->exec();
         return static_cast<Async::Future<PrevOut>*>(mPrev->result());
     } else {
-        return 0;
+        return nullptr;
     }
 }
 
