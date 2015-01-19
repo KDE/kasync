@@ -36,6 +36,7 @@ public:
 
     virtual void setFinished() = 0;
     virtual bool isFinished() const = 0;
+    virtual void setError(int code = 1, const QString &message = QString()) = 0;
 
 protected:
     FutureBase();
@@ -67,6 +68,23 @@ public:
     bool isFinished() const
     {
         return d->finished;
+    }
+
+    void setError(int errorCode, const QString &message)
+    {
+        d->errorCode = errorCode;
+        d->errorMessage = message;
+        setFinished();
+    }
+
+    int errorCode() const
+    {
+        return d->errorCode;
+    }
+
+    QString errorMessage() const
+    {
+        return d->errorMessage;
     }
 
     void waitForFinished()

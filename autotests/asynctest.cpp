@@ -44,6 +44,7 @@ private Q_SLOTS:
     void testNestedAsync();
     void testSyncEach();
     void testSyncReduce();
+    void testErrorHandler();
 };
 
 void AsyncTest::testSyncPromises()
@@ -195,6 +196,26 @@ void AsyncTest::testSyncReduce()
     QCOMPARE(future.value(), 10);
 }
 
+void AsyncTest::testErrorHandler()
+{
+    int error = 0;
+    auto job = Async::start<int>(
+        [](Async::Future<int> &f) {
+            f.setError(1, "error");
+        })
+    .then<int, int>(
+        [](int v, Async::Future<int> &f) {
+            f.setFinished();
+        },
+        [&error](int errorCode, const QString &errorMessage) {
+            error = errorCode; 
+        }
+    );
+    auto future = job.exec();
+    future.waitForFinished();
+    QVERIFY(error == 1);
+    QVERIFY(future.isFinished());
+}
 
 
 QTEST_MAIN(AsyncTest);

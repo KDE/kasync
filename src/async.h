@@ -47,6 +47,7 @@ template<typename Out, typename In>
 using EachTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
 template<typename Out, typename In>
 using ReduceTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
+using ErrorHandler = std::function<void(int, const QString &)>;
 
 namespace Private
 {
@@ -93,6 +94,7 @@ protected:
     void exec();
 
     std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
+    std::function<void(int, const QString &)> mErrorFunc;
     Async::Future<PrevOut> *mPrevFuture;
     Async::FutureWatcher<PrevOut> *mPrevFutureWatcher;
 };
@@ -101,7 +103,7 @@ template<typename Out, typename ... In>
 class ThenExecutor: public Executor<typename PreviousOut<In ...>::type, Out, In ...>
 {
 public:
-    ThenExecutor(ThenTask<Out, In ...> then, ExecutorBase *parent = nullptr);
+    ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler = ErrorHandler(), ExecutorBase *parent = nullptr);
     void previousFutureReady();
 
 private:
@@ -221,9 +223,9 @@ class Job : public JobBase
 
 public:
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func)
+    Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
     {
-        return Job<OutOther, InOther ...>(new Private::ThenExecutor<OutOther, InOther ...>(func, mExecutor));
+        return Job<OutOther, InOther ...>(new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor));
     }
 
     template<typename OutOther, typename InOther>
@@ -309,10 +311,11 @@ void Executor<PrevOut, Out, In ...>::exec()
 }
 
 template<typename Out, typename ... In>
-ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ExecutorBase* parent)
+ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler error, ExecutorBase* parent)
     : Executor<typename PreviousOut<In ...>::type, Out, In ...>(parent)
 {
     this->mFunc = then;
+    this->mErrorFunc = error;
 }
 
 template<typename Out, typename ... In>
@@ -321,8 +324,19 @@ void ThenExecutor<Out, In ...>::previousFutureReady()
     if (this->mPrevFuture) {
         assert(this->mPrevFuture->isFinished());
     }
-    this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...,
-                *static_cast<Async::Future<Out>*>(this->mResult));
+    if (this->mPrevFuture && this->mPrevFuture->errorCode()) {
+        if (this->mErrorFunc) {
+            this->mErrorFunc(this->mPrevFuture->errorCode(), this->mPrevFuture->errorMessage());
+        } else {
+            static_cast<Async::Future<Out>*>(this->mResult)->setError(this->mPrevFuture->errorCode(), this->mPrevFuture->errorMessage());
+            //propagate error if no error handler is available
+            this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...,
+                        *static_cast<Async::Future<Out>*>(this->mResult));
+        }
+    } else {
+        this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...,
+                    *static_cast<Async::Future<Out>*>(this->mResult));
+    }
 }
 
 template<typename PrevOut, typename Out, typename In>
