@@ -35,13 +35,11 @@ public:
     virtual ~FutureBase();
 
     virtual void setFinished() = 0;
-    bool isFinished() const;
+    virtual bool isFinished() const = 0;
 
 protected:
     FutureBase();
     FutureBase(const FutureBase &other);
-
-    bool mFinished;
 };
 
 template<typename T>
@@ -58,12 +56,17 @@ class FutureGeneric : public FutureBase
 public:
     void setFinished()
     {
-        mFinished = true;
+        d->finished = true;
         for (auto watcher : d->watchers) {
             if (watcher) {
                 watcher->futureReadyCallback();
             }
         }
+    }
+
+    bool isFinished() const
+    {
+        return d->finished;
     }
 
     void waitForFinished()
@@ -93,10 +96,12 @@ protected:
     class Private : public QSharedData
     {
     public:
+        Private() : QSharedData(), finished(false) {}
         typename std::conditional<std::is_void<T>::value, int /* dummy */, T>::type
         value;
 
         QVector<QPointer<FutureWatcher<T>>> watchers;
+        bool finished;
     };
 
     QExplicitlySharedDataPointer<Private> d;

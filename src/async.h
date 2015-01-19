@@ -300,8 +300,7 @@ void Executor<PrevOut, Out, In ...>::exec()
         auto futureWatcher = new Async::FutureWatcher<PrevOut>();
         QObject::connect(futureWatcher, &Async::FutureWatcher<PrevOut>::futureReady,
                          [futureWatcher, this]() {
-                            //FIXME mFinished is not part of the d-pointer but we copy the future below
-                             // assert(futureWatcher->future().isFinished());
+                             assert(futureWatcher->future().isFinished());
                              futureWatcher->deleteLater();
                              previousFutureReady();
                          });
@@ -320,7 +319,7 @@ template<typename Out, typename ... In>
 void ThenExecutor<Out, In ...>::previousFutureReady()
 {
     if (this->mPrevFuture) {
-            assert(this->mPrevFuture->isFinished());
+        assert(this->mPrevFuture->isFinished());
     }
     this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...,
                 *static_cast<Async::Future<Out>*>(this->mResult));

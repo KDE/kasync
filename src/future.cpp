@@ -20,22 +20,15 @@
 using namespace Async;
 
 FutureBase::FutureBase()
-    : mFinished(false)
 {
 }
 
 FutureBase::FutureBase(const Async::FutureBase &other)
-    : mFinished(other.mFinished)
 {
 }
 
 FutureBase::~FutureBase()
 {
-}
-
-bool FutureBase::isFinished() const
-{
-    return mFinished;
 }
 
 FutureWatcherBase::FutureWatcherBase(QObject *parent)
