@@ -114,12 +114,14 @@ protected:
     class Private : public QSharedData
     {
     public:
-        Private() : QSharedData(), finished(false) {}
+        Private() : QSharedData(), finished(false), errorCode(0) {}
         typename std::conditional<std::is_void<T>::value, int /* dummy */, T>::type
         value;
 
         QVector<QPointer<FutureWatcher<T>>> watchers;
         bool finished;
+        int errorCode;
+        QString errorMessage;
     };
 
     QExplicitlySharedDataPointer<Private> d;
