@@ -90,7 +90,6 @@ protected:
     Executor(ExecutorBase *parent)
         : ExecutorBase(parent)
         , mPrevFuture(0)
-        , mPrevFutureWatcher(0)
     {}
     virtual ~Executor() {}
     inline Async::Future<PrevOut>* chainup();
@@ -101,7 +100,6 @@ protected:
     std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
     std::function<void(int, const QString &)> mErrorFunc;
     Async::Future<PrevOut> *mPrevFuture;
-    Async::FutureWatcher<PrevOut> *mPrevFutureWatcher;
 };
 
 template<typename Out, typename ... In>
@@ -110,9 +108,6 @@ class ThenExecutor: public Executor<typename PreviousOut<In ...>::type, Out, In 
 public:
     ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler = ErrorHandler(), ExecutorBase *parent = nullptr);
     void previousFutureReady();
-
-private:
-    Async::FutureWatcher<typename PreviousOut<In ...>::type> *mFutureWatcher;
 };
 
 template<typename PrevOut, typename Out, typename In>
