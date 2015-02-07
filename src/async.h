@@ -342,6 +342,7 @@ void ThenExecutor<Out, In ...>::previousFutureReady()
     if (this->mPrevFuture && this->mPrevFuture->errorCode()) {
         if (this->mErrorFunc) {
             this->mErrorFunc(this->mPrevFuture->errorCode(), this->mPrevFuture->errorMessage());
+            this->mResult->setFinished();
         } else {
             static_cast<Async::Future<Out>*>(this->mResult)->setError(this->mPrevFuture->errorCode(), this->mPrevFuture->errorMessage());
             //propagate error if no error handler is available
