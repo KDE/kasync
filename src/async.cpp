@@ -24,7 +24,7 @@
 
 using namespace Async;
 
-Private::ExecutorBase::ExecutorBase(ExecutorBase* parent)
+Private::ExecutorBase::ExecutorBase(const ExecutorBasePtr &parent)
     : mPrev(parent)
     , mResult(0)
 {
@@ -36,7 +36,7 @@ Private::ExecutorBase::~ExecutorBase()
 }
 
 
-JobBase::JobBase(Private::ExecutorBase *executor)
+JobBase::JobBase(const Private::ExecutorBasePtr &executor)
     : mExecutor(executor)
 {
 }

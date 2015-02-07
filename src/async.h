@@ -29,10 +29,12 @@
 
 #include <QVector>
 #include <QObject>
+#include <QSharedPointer>
 
 
 /*
- * TODO: on .then and potentially others: support for ThenTask without future argument and return value which makes it implicitly a sync continuation. Useful for typical value consumer continuations.
+ * TODO: on .then and potentially others: support for ThenTask without future argument and return value which makes it implicitly a sync continuation.
+ * Useful for typical value consumer continuations.
  * TODO: error continuation on .then and others.
  * TODO: instead of passing the future objects callbacks could be provided for result reporting (we can still use the future object internally
  */
@@ -57,6 +59,10 @@ using ErrorHandler = std::function<void(int, const QString &)>;
 namespace Private
 {
 
+class ExecutorBase;
+typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
+
+
 template<typename ... T>
 struct PreviousOut {
     using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
@@ -77,9 +83,9 @@ public:
     }
 
 protected:
-    ExecutorBase(ExecutorBase *parent);
+    ExecutorBase(const ExecutorBasePtr &parent);
 
-    ExecutorBase *mPrev;
+    ExecutorBasePtr mPrev;
     FutureBase *mResult;
 };
 
@@ -87,7 +93,7 @@ template<typename PrevOut, typename Out, typename ... In>
 class Executor : public ExecutorBase
 {
 protected:
-    Executor(ExecutorBase *parent)
+    Executor(const Private::ExecutorBasePtr &parent)
         : ExecutorBase(parent)
         , mPrevFuture(0)
     {}
@@ -106,7 +112,7 @@ template<typename Out, typename ... In>
 class ThenExecutor: public Executor<typename PreviousOut<In ...>::type, Out, In ...>
 {
 public:
-    ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler = ErrorHandler(), ExecutorBase *parent = nullptr);
+    ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler = ErrorHandler(), const ExecutorBasePtr &parent = ExecutorBasePtr());
     void previousFutureReady();
 };
 
@@ -114,7 +120,7 @@ template<typename PrevOut, typename Out, typename In>
 class EachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
-    EachExecutor(EachTask<Out, In> each, ExecutorBase *parent);
+    EachExecutor(EachTask<Out, In> each, const ExecutorBasePtr &parent);
     void previousFutureReady();
 
 private:
@@ -122,11 +128,10 @@ private:
 };
 
 template<typename Out, typename In>
-class ReduceExecutor : public Executor<In, Out, In>
+class ReduceExecutor : public ThenExecutor<Out, In>
 {
 public:
-    ReduceExecutor(ReduceTask<Out, In> reduce, ExecutorBase *parent);
-    void previousFutureReady();
+    ReduceExecutor(ReduceTask<Out, In> reduce, const ExecutorBasePtr &parent);
 };
 
 } // namespace Private
@@ -175,11 +180,11 @@ class JobBase
     friend class Job;
 
 public:
-    JobBase(Private::ExecutorBase *executor);
+    JobBase(const Private::ExecutorBasePtr &executor);
     ~JobBase();
 
 protected:
-    Private::ExecutorBase *mExecutor;
+    Private::ExecutorBasePtr mExecutor;
 };
 
 /**
@@ -237,9 +242,8 @@ public:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
     {
-        //FIXME are we leaking the executor?
-        //The executor is copied with ever job instance, so use a sharedpointer?
-        return Job<OutOther, InOther ...>(new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor));
+        return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
+            new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
     }
 
     template<typename OutOther, typename InOther>
@@ -249,7 +253,8 @@ public:
                       "The 'Each' task can only be connected to a job that returns a list or an array.");
         static_assert(detail::isIterable<OutOther>::value,
                       "The result type of 'Each' task must be a list or an array.");
-        return Job<OutOther, InOther>(new Private::EachExecutor<Out, OutOther, InOther>(func, mExecutor));
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::EachExecutor<Out, OutOther, InOther>(func, mExecutor)));
     }
 
     template<typename OutOther, typename InOther>
@@ -259,7 +264,8 @@ public:
                       "The 'Result' task can only be connected to a job that returns a list or an array");
         static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
                       "The return type of previous task must be compatible with input type of this task");
-        return Job<OutOther, InOther>(new Private::ReduceExecutor<OutOther, InOther>(func, mExecutor));
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::ReduceExecutor<OutOther, InOther>(func, mExecutor)));
     }
 
     Async::Future<Out> exec()
@@ -274,7 +280,7 @@ public:
     }
 
 private:
-    Job(Private::ExecutorBase *executor)
+    Job(Private::ExecutorBasePtr executor)
         : JobBase(executor)
     {}
 };
@@ -289,8 +295,7 @@ namespace Async {
 template<typename Out>
 Job<Out> start(ThenTask<Out> func)
 {
-    //FIXME we're leaking the exucutor, use a shared pointer
-    return Job<Out>(new Private::ThenExecutor<Out>(func));
+    return Job<Out>(Private::ExecutorBasePtr(new Private::ThenExecutor<Out>(func)));
 }
 
 namespace Private {
@@ -326,7 +331,7 @@ void Executor<PrevOut, Out, In ...>::exec()
 }
 
 template<typename Out, typename ... In>
-ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler error, ExecutorBase* parent)
+ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler error, const ExecutorBasePtr &parent)
     : Executor<typename PreviousOut<In ...>::type, Out, In ...>(parent)
 {
     this->mFunc = then;
@@ -356,7 +361,7 @@ void ThenExecutor<Out, In ...>::previousFutureReady()
 }
 
 template<typename PrevOut, typename Out, typename In>
-EachExecutor<PrevOut, Out, In>::EachExecutor(EachTask<Out, In> each, ExecutorBase* parent)
+EachExecutor<PrevOut, Out, In>::EachExecutor(EachTask<Out, In> each, const ExecutorBasePtr &parent)
     : Executor<PrevOut, Out, In>(parent)
 {
     this->mFunc = each;
@@ -393,18 +398,11 @@ void EachExecutor<PrevOut, Out, In>::previousFutureReady()
 }
 
 template<typename Out, typename In>
-ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, ExecutorBase* parent)
-    : Executor<In, Out, In>(parent)
+ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, const ExecutorBasePtr &parent)
+    : ThenExecutor<Out, In>(reduce, ErrorHandler(), parent)
 {
-    this->mFunc = reduce;
 }
 
-template<typename Out, typename In>
-void ReduceExecutor<Out, In>::previousFutureReady()
-{
-    assert(this->mPrevFuture->isFinished());
-    this->mFunc(this->mPrevFuture->value(), *static_cast<Async::Future<Out>*>(this->mResult));
-}
 
 } // namespace Private
 
