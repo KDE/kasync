@@ -143,7 +143,7 @@ void AsyncTest::testNestedAsync()
                 future.setFinished();
                 innerThenFuture.setFinished();
             });
-            innerJob.exec();
+            innerJob.exec().waitForFinished();
         }
     ).then<int, int>([&done](int result, Async::Future<int> &future) {
         done = true;
