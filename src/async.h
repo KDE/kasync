@@ -66,11 +66,6 @@ class ExecutorBase;
 typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
 
 
-template<typename ... T>
-struct PreviousOut {
-    using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
-};
-
 class ExecutorBase
 {
     template<typename PrevOut, typename Out, typename ... In>
@@ -113,7 +108,7 @@ protected:
 };
 
 template<typename Out, typename ... In>
-class ThenExecutor: public Executor<typename PreviousOut<In ...>::type, Out, In ...>
+class ThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
 {
 public:
     ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
@@ -139,7 +134,7 @@ public:
 };
 
 template<typename Out, typename ... In>
-class SyncThenExecutor : public Executor<typename PreviousOut<In ...>::type, Out, In ...>
+class SyncThenExecutor : public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
 {
 public:
     SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
@@ -430,7 +425,7 @@ void Executor<PrevOut, Out, In ...>::exec()
 
 template<typename Out, typename ... In>
 ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler error, const ExecutorBasePtr &parent)
-    : Executor<typename PreviousOut<In ...>::type, Out, In ...>(error, parent)
+    : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(error, parent)
 {
     this->mFunc = then;
 }
@@ -492,7 +487,7 @@ ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, ErrorHandler
 
 template<typename Out, typename ... In>
 SyncThenExecutor<Out, In ...>::SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent)
-    : Executor<typename PreviousOut<In ...>::type, Out, In ...>(errorHandler, parent)
+    : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(errorHandler, parent)
 {
     this->mFunc = then;
 }

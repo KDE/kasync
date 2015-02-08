@@ -40,6 +40,11 @@ struct isIterable<T, typename std::conditional<false, typename T::iterator, void
     enum { value = 1 };
 };
 
+template<typename ... T>
+struct prevOut {
+    using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
+};
+
 } // namespace Detail
 
 } // namespace Async
