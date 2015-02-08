@@ -102,7 +102,7 @@ protected:
 
     void exec();
 
-    std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
+    //std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
     std::function<void(int, const QString &)> mErrorFunc;
     Async::Future<PrevOut> *mPrevFuture;
 };
@@ -113,6 +113,8 @@ class ThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out,
 public:
     ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
     void previousFutureReady();
+private:
+    ThenTask<Out, In ...> mFunc;
 };
 
 template<typename PrevOut, typename Out, typename In>
@@ -121,8 +123,8 @@ class EachExecutor : public Executor<PrevOut, Out, In>
 public:
     EachExecutor(EachTask<Out, In> each, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
     void previousFutureReady();
-
 private:
+    EachTask<Out, In> mFunc;
     QVector<Async::FutureWatcher<PrevOut>*> mFutureWatchers;
 };
 
@@ -131,6 +133,8 @@ class ReduceExecutor : public ThenExecutor<Out, In>
 {
 public:
     ReduceExecutor(ReduceTask<Out, In> reduce, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
+private:
+    ReduceTask<Out, In> mFunc;
 };
 
 template<typename Out, typename ... In>
@@ -139,7 +143,7 @@ class SyncThenExecutor : public Executor<typename detail::prevOut<In ...>::type,
 public:
     SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
     void previousFutureReady();
-protected:
+private:
     SyncThenTask<Out, In ...> mFunc;
 };
 
@@ -148,6 +152,8 @@ class SyncReduceExecutor : public SyncThenExecutor<Out, In>
 {
 public:
     SyncReduceExecutor(SyncReduceTask<Out, In> reduce, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
+private:
+    SyncReduceTask<Out, In> mFunc;
 };
 
 template<typename PrevOut, typename Out, typename In>
@@ -156,7 +162,7 @@ class SyncEachExecutor : public Executor<PrevOut, Out, In>
 public:
     SyncEachExecutor(SyncEachTask<Out, In> each, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
     void previousFutureReady();
-protected:
+private:
     SyncEachTask<Out, In> mFunc;
 };
 
@@ -193,6 +199,7 @@ Job<Out> null();
  */
 template<typename Out>
 Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
+
 
 class JobBase
 {
@@ -353,13 +360,15 @@ namespace Async {
 template<typename Out>
 Job<Out> start(ThenTask<Out> func)
 {
-    return Job<Out>(Private::ExecutorBasePtr(new Private::ThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
+    return Job<Out>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
 }
 
 template<typename Out>
 Job<Out> start(SyncThenTask<Out> func)
 {
-    return Job<Out>(Private::ExecutorBasePtr(new Private::SyncThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
+    return Job<Out>(Private::ExecutorBasePtr(
+        new Private::SyncThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
 }
 
 template<typename Out>
@@ -437,8 +446,8 @@ void Executor<PrevOut, Out, In ...>::exec()
 template<typename Out, typename ... In>
 ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler error, const ExecutorBasePtr &parent)
     : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(error, parent)
+    , mFunc(then)
 {
-    this->mFunc = then;
 }
 
 template<typename Out, typename ... In>
@@ -455,8 +464,8 @@ void ThenExecutor<Out, In ...>::previousFutureReady()
 template<typename PrevOut, typename Out, typename In>
 EachExecutor<PrevOut, Out, In>::EachExecutor(EachTask<Out, In> each, ErrorHandler error, const ExecutorBasePtr &parent)
     : Executor<PrevOut, Out, In>(error, parent)
+    , mFunc(each)
 {
-    this->mFunc = each;
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -499,8 +508,8 @@ ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, ErrorHandler
 template<typename Out, typename ... In>
 SyncThenExecutor<Out, In ...>::SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent)
     : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(errorHandler, parent)
+    , mFunc(then)
 {
-    this->mFunc = then;
 }
 
 template<typename Out, typename ... In>
@@ -518,8 +527,8 @@ void SyncThenExecutor<Out, In ...>::previousFutureReady()
 template<typename PrevOut, typename Out, typename In>
 SyncEachExecutor<PrevOut, Out, In>::SyncEachExecutor(SyncEachTask<Out, In> each, ErrorHandler errorHandler, const ExecutorBasePtr &parent)
     : Executor<PrevOut, Out, In>(errorHandler, parent)
+    , mFunc(each)
 {
-    this->mFunc = each;
 }
 
 template<typename PrevOut, typename Out, typename In>
