@@ -183,12 +183,7 @@ Job<Out> start(ThenTask<Out> func);
  *
  */
 template<typename Out>
-Job<Out> null()
-{
-    return Async::start<Out>([](Async::Future<Out> &future) {
-        future.setFinished();
-    });
-}
+Job<Out> null();
 
 /**
  * An error job.
@@ -197,10 +192,7 @@ Job<Out> null()
  *
  */
 template<typename Out>
-Job<Out> error(int errorCode = 1, const QString &errorMessage = QString())
-{
-    return Async::start<Out>([errorCode, errorMessage](Async::Future<Out> &future) {future.setError(errorCode, errorMessage);});
-}
+Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
 
 class JobBase
 {
@@ -369,6 +361,25 @@ Job<Out> start(SyncThenTask<Out> func)
 {
     return Job<Out>(Private::ExecutorBasePtr(new Private::SyncThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
 }
+
+template<typename Out>
+Job<Out> null()
+{
+    return Async::start<Out>(
+        [](Async::Future<Out> &future) {
+            future.setFinished();
+        });
+}
+
+template<typename Out>
+Job<Out> error(int errorCode, const QString &errorMessage)
+{
+    return Async::start<Out>(
+        [errorCode, errorMessage](Async::Future<Out> &future) {
+            future.setError(errorCode, errorMessage);
+        });
+}
+
 
 namespace Private {
 
