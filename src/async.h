@@ -33,8 +33,6 @@
 
 
 /*
- * TODO: on .then and potentially others: support for ThenTask without future argument and return value which makes it implicitly a sync continuation.
- * Useful for typical value consumer continuations.
  * TODO: error continuation on .then and others.
  * TODO: instead of passing the future objects callbacks could be provided for result reporting (we can still use the future object internally
  */
@@ -47,13 +45,19 @@ class JobBase;
 
 template<typename Out, typename ... In>
 class Job;
-
 template<typename Out, typename ... In>
 using ThenTask = typename detail::identity<std::function<void(In ..., Async::Future<Out>&)>>::type;
+template<typename Out, typename ... In>
+using SyncThenTask = typename detail::identity<std::function<Out(In ...)>>::type;
 template<typename Out, typename In>
 using EachTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
 template<typename Out, typename In>
+using SyncEachTask = typename detail::identity<std::function<Out(In)>>::type;
+template<typename Out, typename In>
 using ReduceTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
+template<typename Out, typename In>
+using SyncReduceTask = typename detail::identity<std::function<Out(In)>>::type;
+
 using ErrorHandler = std::function<void(int, const QString &)>;
 
 namespace Private
@@ -132,6 +136,33 @@ class ReduceExecutor : public ThenExecutor<Out, In>
 {
 public:
     ReduceExecutor(ReduceTask<Out, In> reduce, const ExecutorBasePtr &parent);
+};
+
+template<typename Out, typename ... In>
+class SyncThenExecutor : public Executor<typename PreviousOut<In ...>::type, Out, In ...>
+{
+public:
+    SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler = ErrorHandler(), const ExecutorBasePtr &parent = ExecutorBasePtr());
+    void previousFutureReady();
+protected:
+    SyncThenTask<Out, In ...> mFunc;
+};
+
+template<typename Out, typename In>
+class SyncReduceExecutor : public SyncThenExecutor<Out, In>
+{
+public:
+    SyncReduceExecutor(SyncReduceTask<Out, In> reduce, const ExecutorBasePtr &parent = ExecutorBasePtr());
+};
+
+template<typename PrevOut, typename Out, typename In>
+class SyncEachExecutor : public Executor<PrevOut, Out, In>
+{
+public:
+    SyncEachExecutor(SyncEachTask<Out, In> each, const ExecutorBasePtr &parent = ExecutorBasePtr());
+    void previousFutureReady();
+protected:
+    SyncEachTask<Out, In> mFunc;
 };
 
 } // namespace Private
@@ -238,6 +269,9 @@ class Job : public JobBase
     template<typename OutOther>
     friend Job<OutOther> start(Async::ThenTask<OutOther> func);
 
+    template<typename OutOther>
+    friend Job<OutOther> start(Async::SyncThenTask<OutOther> func);
+
 public:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
@@ -246,26 +280,43 @@ public:
             new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
     }
 
+    template<typename OutOther, typename ... InOther>
+    Job<OutOther, InOther ...> then(SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
+            new Private::SyncThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
+    }
+
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(EachTask<OutOther, InOther> func)
     {
-        static_assert(detail::isIterable<Out>::value,
-                      "The 'Each' task can only be connected to a job that returns a list or an array.");
-        static_assert(detail::isIterable<OutOther>::value,
-                      "The result type of 'Each' task must be a list or an array.");
+        eachInvariants<OutOther>();
         return Job<OutOther, InOther>(Private::ExecutorBasePtr(
             new Private::EachExecutor<Out, OutOther, InOther>(func, mExecutor)));
     }
 
     template<typename OutOther, typename InOther>
+    Job<OutOther, InOther> each(SyncEachTask<OutOther, InOther> func)
+    {
+        eachInvariants<OutOther>();
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::SyncEachExecutor<Out, OutOther, InOther>(func, mExecutor)));
+    }
+
+    template<typename OutOther, typename InOther>
     Job<OutOther, InOther> reduce(ReduceTask<OutOther, InOther> func)
     {
-        static_assert(Async::detail::isIterable<Out>::value,
-                      "The 'Result' task can only be connected to a job that returns a list or an array");
-        static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
-                      "The return type of previous task must be compatible with input type of this task");
+        reduceInvariants<InOther>();
         return Job<OutOther, InOther>(Private::ExecutorBasePtr(
             new Private::ReduceExecutor<OutOther, InOther>(func, mExecutor)));
+    }
+
+    template<typename OutOther, typename InOther>
+    Job<OutOther, InOther> reduce(SyncReduceTask<OutOther, InOther> func)
+    {
+        reduceInvariants<InOther>();
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::SyncReduceExecutor<OutOther, InOther>(func, mExecutor)));
     }
 
     Async::Future<Out> exec()
@@ -283,6 +334,24 @@ private:
     Job(Private::ExecutorBasePtr executor)
         : JobBase(executor)
     {}
+
+    template<typename OutOther>
+    void eachInvariants()
+    {
+        static_assert(detail::isIterable<Out>::value,
+                      "The 'Each' task can only be connected to a job that returns a list or an array.");
+        static_assert(detail::isIterable<OutOther>::value,
+                      "The result type of 'Each' task must be a list or an array.");
+    }
+
+    template<typename InOther>
+    void reduceInvariants()
+    {
+        static_assert(Async::detail::isIterable<Out>::value,
+                      "The 'Result' task can only be connected to a job that returns a list or an array");
+        static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
+                      "The return type of previous task must be compatible with input type of this task");
+    }
 };
 
 } // namespace Async
@@ -296,6 +365,12 @@ template<typename Out>
 Job<Out> start(ThenTask<Out> func)
 {
     return Job<Out>(Private::ExecutorBasePtr(new Private::ThenExecutor<Out>(func)));
+}
+
+template<typename Out>
+Job<Out> start(SyncThenTask<Out> func)
+{
+    return Job<Out>(Private::ExecutorBasePtr(new Private::SyncThenExecutor<Out>(func)));
 }
 
 namespace Private {
@@ -378,28 +453,91 @@ void EachExecutor<PrevOut, Out, In>::previousFutureReady()
     }
 
     for (auto arg : this->mPrevFuture->value()) {
-        Async::Future<Out> future;
-        this->mFunc(arg, future);
+        auto future = new Async::Future<Out>;
+        this->mFunc(arg, *future);
         auto fw = new Async::FutureWatcher<Out>();
         mFutureWatchers.append(fw);
         QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
                          [out, future, fw, this]() {
-                             assert(future.isFinished());
+                             assert(future->isFinished());
                              const int index = mFutureWatchers.indexOf(fw);
                              assert(index > -1);
                              mFutureWatchers.removeAt(index);
-                             out->setValue(out->value() + future.value());
+                             out->setValue(out->value() + future->value());
+                             delete future;
                              if (mFutureWatchers.isEmpty()) {
                                  out->setFinished();
                              }
                          });
-        fw->setFuture(future);
+        fw->setFuture(*future);
     }
 }
 
 template<typename Out, typename In>
 ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, const ExecutorBasePtr &parent)
     : ThenExecutor<Out, In>(reduce, ErrorHandler(), parent)
+{
+}
+
+template<typename Out, typename ... In>
+SyncThenExecutor<Out, In ...>::SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent)
+    : Executor<typename PreviousOut<In ...>::type, Out, In ...>(parent)
+{
+    this->mFunc = then;
+    this->mErrorFunc = errorHandler;
+}
+
+template<typename Out, typename ... In>
+void SyncThenExecutor<Out, In ...>::previousFutureReady()
+{
+    if (this->mPrevFuture) {
+        assert(this->mPrevFuture->isFinished());
+    }
+
+    if (this->mPrevFuture && this->mPrevFuture->errorCode()) {
+        if (this->mErrorFunc) {
+            this->mErrorFunc(this->mPrevFuture->errorCode(), this->mPrevFuture->errorMessage());
+            this->mResult->setFinished();
+        } else {
+            static_cast<Async::Future<Out>*>(this->mResult)->setError(this->mPrevFuture->errorCode(), this->mPrevFuture->errorMessage());
+            //propagate error if no error handler is available
+            Out result = this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...);
+            static_cast<Async::Future<Out>*>(this->mResult)->setValue(result);
+            this->mResult->setFinished();
+        }
+    } else {
+        Out result = this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...);
+        static_cast<Async::Future<Out>*>(this->mResult)->setValue(result);
+        this->mResult->setFinished();
+    }
+}
+
+template<typename PrevOut, typename Out, typename In>
+SyncEachExecutor<PrevOut, Out, In>::SyncEachExecutor(SyncEachTask<Out, In> each, const ExecutorBasePtr &parent)
+    : Executor<PrevOut, Out, In>(parent)
+{
+    this->mFunc = each;
+}
+
+template<typename PrevOut, typename Out, typename In>
+void SyncEachExecutor<PrevOut, Out, In>::previousFutureReady()
+{
+    assert(this->mPrevFuture->isFinished());
+    auto out = static_cast<Async::Future<Out>*>(this->mResult);
+    if (this->mPrevFuture->value().isEmpty()) {
+        out->setFinished();
+        return;
+    }
+
+    for (auto arg : this->mPrevFuture->value()) {
+        out->setValue(out->value() + this->mFunc(arg));
+    }
+    out->setFinished();
+}
+
+template<typename Out, typename In>
+SyncReduceExecutor<Out, In>::SyncReduceExecutor(SyncReduceTask<Out, In> reduce, const ExecutorBasePtr &parent)
+    : SyncThenExecutor<Out, In>(reduce, ErrorHandler(), parent)
 {
 }
 
