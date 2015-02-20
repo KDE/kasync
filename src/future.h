@@ -57,6 +57,9 @@ class FutureGeneric : public FutureBase
 public:
     void setFinished()
     {
+        if (d->finished) {
+            return;
+        }
         d->finished = true;
         for (auto watcher : d->watchers) {
             if (watcher) {
