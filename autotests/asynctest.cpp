@@ -25,6 +25,7 @@
 #include <QString>
 #include <QTimer>
 #include <QtTest/QTest>
+#include <QDebug>
 
 class AsyncTest : public QObject
 {
@@ -42,6 +43,8 @@ private Q_SLOTS:
     void testAsyncPromises();
     void testAsyncPromises2();
     void testNestedAsync();
+    void testStartValue();
+
     void testAsyncThen();
     void testSyncThen();
     void testAsyncEach();
@@ -51,6 +54,8 @@ private Q_SLOTS:
     void testErrorHandler();
 
 };
+
+
 
 void AsyncTest::testSyncPromises()
 {
@@ -159,6 +164,23 @@ void AsyncTest::testNestedAsync()
 
     QTRY_VERIFY(done);
 }
+
+void AsyncTest::testStartValue()
+{
+    auto job = Async::start<int, int>(
+        [](int in, Async::Future<int> &future) {
+            future.setValue(in);
+            future.setFinished();
+        });
+
+    auto future = job.exec(42);
+    QVERIFY(future.isFinished());
+    QCOMPARE(future.value(), 42);
+}
+
+
+
+
 
 void AsyncTest::testAsyncThen()
 {

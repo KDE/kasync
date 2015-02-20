@@ -31,6 +31,7 @@
 #include <QObject>
 #include <QSharedPointer>
 
+#include <QDebug>
 
 /*
  * TODO: instead of passing the future objects callbacks could be provided for result reporting (we can still use the future object internally
@@ -44,6 +45,7 @@ class JobBase;
 
 template<typename Out, typename ... In>
 class Job;
+
 template<typename Out, typename ... In>
 using ThenTask = typename detail::identity<std::function<void(In ..., Async::Future<Out>&)>>::type;
 template<typename Out, typename ... In>
@@ -70,6 +72,9 @@ class ExecutorBase
 {
     template<typename PrevOut, typename Out, typename ... In>
     friend class Executor;
+
+    template<typename Out, typename ... In>
+    friend class Async::Job;
 
 public:
     virtual ~ExecutorBase();
@@ -178,8 +183,11 @@ private:
  *             void return type, and accept exactly one argument of type @p Async::Future<In>,
  *             where @p In is type of the result.
  */
-template<typename Out>
-Job<Out> start(ThenTask<Out> func);
+template<typename Out, typename ... In>
+Job<Out, In ...> start(ThenTask<Out, In ...> func);
+
+template<typename Out, typename ... In>
+Job<Out, In ...> start(SyncThenTask<Out, In ...> func);
 
 
 /**
@@ -262,11 +270,11 @@ class Job : public JobBase
     template<typename OutOther, typename ... InOther>
     friend class Job;
 
-    template<typename OutOther>
-    friend Job<OutOther> start(Async::ThenTask<OutOther> func);
+    template<typename OutOther, typename ... InOther>
+    friend Job<OutOther, InOther ...> start(Async::ThenTask<OutOther, InOther ...> func);
 
-    template<typename OutOther>
-    friend Job<OutOther> start(Async::SyncThenTask<OutOther> func);
+    template<typename OutOther, typename ... InOther>
+    friend Job<OutOther, InOther ...> start(Async::SyncThenTask<OutOther, InOther ...> func);
 
 public:
     template<typename OutOther, typename ... InOther>
@@ -315,6 +323,27 @@ public:
             new Private::SyncReduceExecutor<OutOther, InOther>(func, errorFunc, mExecutor)));
     }
 
+    template<typename FirstIn>
+    Async::Future<Out> exec(FirstIn in)
+    {
+        // Inject a fake sync executor that will return the initial value
+        Private::ExecutorBasePtr first = mExecutor;
+        while (first->mPrev) {
+            first = first->mPrev;
+        }
+        auto init = new Private::SyncThenExecutor<FirstIn>(
+            [in]() -> FirstIn {
+                return in;
+            },
+            ErrorHandler(), Private::ExecutorBasePtr());
+        first->mPrev = Private::ExecutorBasePtr(init);
+
+        auto result = exec();
+        // Remove the injected executor
+        first->mPrev.reset();
+        return result;
+    }
+
     Async::Future<Out> exec()
     {
         mExecutor->exec();
@@ -357,18 +386,18 @@ private:
 
 namespace Async {
 
-template<typename Out>
-Job<Out> start(ThenTask<Out> func)
+template<typename Out, typename ... In>
+Job<Out, In ...> start(ThenTask<Out, In ...> func)
 {
-    return Job<Out>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
+    return Job<Out, In...>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<Out, In ...>(func, ErrorHandler(), Private::ExecutorBasePtr())));
 }
 
-template<typename Out>
-Job<Out> start(SyncThenTask<Out> func)
+template<typename Out, typename ... In>
+Job<Out, In ...> start(SyncThenTask<Out, In ...> func)
 {
-    return Job<Out>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<Out>(func, ErrorHandler(), Private::ExecutorBasePtr())));
+    return Job<Out, In...>(Private::ExecutorBasePtr(
+        new Private::SyncThenExecutor<Out, In ...>(func, ErrorHandler(), Private::ExecutorBasePtr())));
 }
 
 template<typename Out>
@@ -442,6 +471,7 @@ void Executor<PrevOut, Out, In ...>::exec()
         futureWatcher->setFuture(*mPrevFuture);
     }
 }
+
 
 template<typename Out, typename ... In>
 ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler error, const ExecutorBasePtr &parent)
