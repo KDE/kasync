@@ -19,6 +19,7 @@
 #define ASYNC_IMPL_H
 
 #include "async.h"
+#include <type_traits>
 
 namespace Async {
 
@@ -44,6 +45,20 @@ template<typename ... T>
 struct prevOut {
     using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
 };
+
+template<typename T>
+inline typename std::enable_if<!std::is_void<T>::value, void>::type
+copyFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+{
+    out.setValue(in.value());
+}
+
+template<typename T>
+inline typename std::enable_if<std::is_void<T>::value, void>::type
+copyFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+{
+    // noop
+}
 
 } // namespace Detail
 

@@ -291,6 +291,12 @@ public:
             new Private::SyncThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
     }
 
+    template<typename OutOther, typename ... InOther>
+    Job<OutOther, InOther ...> then(Job<OutOther, InOther ...> otherJob, ErrorHandler errorFunc = ErrorHandler())
+    {
+        return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(otherJob), errorFunc);
+    }
+
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(EachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
     {
@@ -308,6 +314,13 @@ public:
     }
 
     template<typename OutOther, typename InOther>
+    Job<OutOther, InOther> each(Job<OutOther, InOther> otherJob, ErrorHandler errorFunc = ErrorHandler())
+    {
+        eachInvariants<OutOther>();
+        return each<OutOther, InOther>(nestedJobWrapper<OutOther, InOther>(otherJob), errorFunc);
+    }
+
+    template<typename OutOther, typename InOther>
     Job<OutOther, InOther> reduce(ReduceTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
     {
         reduceInvariants<InOther>();
@@ -321,6 +334,12 @@ public:
         reduceInvariants<InOther>();
         return Job<OutOther, InOther>(Private::ExecutorBasePtr(
             new Private::SyncReduceExecutor<OutOther, InOther>(func, errorFunc, mExecutor)));
+    }
+
+    template<typename OutOther, typename InOther>
+    Job<OutOther, InOther> reduce(Job<OutOther, InOther> otherJob, ErrorHandler errorFunc = ErrorHandler())
+    {
+        return reduce<OutOther, InOther>(nestedJobWrapper<OutOther, InOther>(otherJob), errorFunc);
     }
 
     template<typename FirstIn>
@@ -376,6 +395,22 @@ private:
                       "The 'Result' task can only be connected to a job that returns a list or an array");
         static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
                       "The return type of previous task must be compatible with input type of this task");
+    }
+
+    template<typename OutOther, typename ... InOther>
+    inline std::function<void(InOther ..., Async::Future<OutOther>&)> nestedJobWrapper(Job<OutOther, InOther ...> otherJob) {
+        return [otherJob](InOther ... in, Async::Future<OutOther> &future) {
+            // copy by value is const
+            auto job = otherJob;
+            FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
+            QObject::connect(watcher, &FutureWatcherBase::futureReady,
+                             [watcher, &future]() {
+                                 Async::detail::copyFutureValue(watcher->future(), future);
+                                 future.setFinished();
+                                 watcher->deleteLater();
+                             });
+            watcher->setFuture(job.exec(in ...));
+        };
     }
 };
 
