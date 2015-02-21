@@ -90,6 +90,8 @@ protected:
 
     ExecutorBasePtr mPrev;
     FutureBase *mResult;
+    bool mIsRunning;
+    bool mIsFinished;
 };
 
 template<typename PrevOut, typename Out, typename ... In>
@@ -470,19 +472,35 @@ Future<PrevOut>* Executor<PrevOut, Out, In ...>::chainup()
 template<typename PrevOut, typename Out, typename ... In>
 void Executor<PrevOut, Out, In ...>::exec()
 {
-    mPrevFuture = chainup();
+    // Don't chain up to job that already is running (or is finished)
+    if (mPrev && !mPrev->mIsRunning & !mPrev->mIsFinished) {
+        mPrevFuture = chainup();
+    } else if (mPrev && !mPrevFuture) {
+        // If previous job is running or finished, just get it's future
+        mPrevFuture = static_cast<Async::Future<PrevOut>*>(mPrev->result());
+    }
+
     // Initialize our future
     mResult = new Async::Future<Out>();
+    auto fw = new Async::FutureWatcher<Out>();
+    QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
+                     [&]() {
+                         mIsFinished = true;
+                         fw->deleteLater();
+                     });
+
     if (!mPrevFuture || mPrevFuture->isFinished()) {
         if (mPrevFuture && mPrevFuture->errorCode() != 0) {
             if (mErrorFunc) {
                 mErrorFunc(mPrevFuture->errorCode(), mPrevFuture->errorMessage());
                 mResult->setFinished();
+                mIsFinished = true;
                 return;
             } else {
                 // Propagate the error to next caller
             }
         }
+        mIsRunning = true;
         previousFutureReady();
     } else {
         auto futureWatcher = new Async::FutureWatcher<PrevOut>();
@@ -500,6 +518,7 @@ void Executor<PrevOut, Out, In ...>::exec()
                                      // Propagate the error to next caller
                                  }
                              }
+                             mIsRunning = true;
                              previousFutureReady();
                          });
 

@@ -59,6 +59,10 @@ private Q_SLOTS:
 
     void testErrorHandler();
 
+
+    void testChainingRunningJob();
+    void testChainingFinishedJob();
+
     void benchmarkSyncThenExecutor();
 
 private:
@@ -395,6 +399,74 @@ void AsyncTest::testErrorHandler()
     future.waitForFinished();
     QCOMPARE(error, 1);
     QVERIFY(future.isFinished());
+}
+
+
+
+void AsyncTest::testChainingRunningJob()
+{
+    int check = 0;
+
+    auto job = Async::start<int>(
+        [&check](Async::Future<int> &future) {
+            QTimer *timer = new QTimer();
+            QObject::connect(timer, &QTimer::timeout,
+                             [&future, &check]() {
+                                 ++check;
+                                 future.setValue(42);
+                                 future.setFinished();
+                             });
+            QObject::connect(timer, &QTimer::timeout,
+                             timer, &QObject::deleteLater);
+            timer->setSingleShot(true);
+            timer->start(500);
+        });
+
+    auto future1 = job.exec();
+    QTest::qWait(200);
+
+    auto job2 = job.then<int, int>(
+        [&check](int in) -> int {
+            ++check;
+            return in * 2;
+        });
+
+    auto future2 = job2.exec();
+    QVERIFY(!future1.isFinished());
+    future2.waitForFinished();
+
+    QCOMPARE(check, 2);
+    QVERIFY(future1.isFinished());
+    QVERIFY(future2.isFinished());
+    QCOMPARE(future1.value(), 42);
+    QCOMPARE(future2.value(), 84);
+}
+
+void AsyncTest::testChainingFinishedJob()
+{
+    int check = 0;
+
+    auto job = Async::start<int>(
+        [&check]() -> int {
+            ++check;
+            return 42;
+        });
+
+    auto future1 = job.exec();
+    QVERIFY(future1.isFinished());
+
+    auto job2 = job.then<int, int>(
+        [&check](int in) -> int {
+            ++check;
+            return in * 2;
+        });
+
+    auto future2 = job2.exec();
+    QVERIFY(future2.isFinished());
+
+    QCOMPARE(check, 2);
+    QCOMPARE(future1.value(), 42);
+    QCOMPARE(future2.value(), 84);
 }
 
 
