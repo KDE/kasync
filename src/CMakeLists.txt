@@ -9,4 +9,4 @@ set(async_SRCS
 
 add_library(${PROJECT_NAME} SHARED ${async_SRCS})
 target_link_libraries(${PROJECT_NAME} Qt5::Core)
-install(TARGETS ${PROJECT_NAME} DESTINATION lib)
+install(TARGETS ${PROJECT_NAME} ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
