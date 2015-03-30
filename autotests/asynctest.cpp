@@ -48,17 +48,19 @@ private Q_SLOTS:
     void testAsyncThen();
     void testSyncThen();
     void testJoinedThen();
+    void testVoidThen();
 
     void testAsyncEach();
     void testSyncEach();
     void testJoinedEach();
+    void testVoidEach();
 
     void testAsyncReduce();
     void testSyncReduce();
     void testJoinedReduce();
+    void testVoidReduce();
 
     void testErrorHandler();
-
 
     void testChainingRunningJob();
     void testChainingFinishedJob();
@@ -91,6 +93,30 @@ private:
         T mResult;
         QTimer mTimer;
     };
+};
+
+
+template<>
+class AsyncTest::AsyncSimulator<void> {
+public:
+    AsyncSimulator(Async::Future<void> &future)
+        : mFuture(future)
+    {
+        QObject::connect(&mTimer, &QTimer::timeout,
+                            [this]() {
+                                mFuture.setFinished();
+                            });
+        QObject::connect(&mTimer, &QTimer::timeout,
+                            [this]() {
+                                delete this;
+                            });
+        mTimer.setSingleShot(true);
+        mTimer.start(200);
+    }
+
+private:
+    Async::Future<void> mFuture;
+    QTimer mTimer;
 };
 
 
@@ -213,7 +239,8 @@ void AsyncTest::testSyncThen()
     auto job = Async::start<int>(
         []() -> int {
             return 42;
-        }).then<int, int>(
+        })
+    .then<int, int>(
         [](int in) -> int {
             return in * 2;
         });
@@ -241,6 +268,32 @@ void AsyncTest::testJoinedThen()
 
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), 84);
+}
+
+void AsyncTest::testVoidThen()
+{
+    int check = 0;
+
+    auto job = Async::start<void>(
+        [&check](Async::Future<void> &future) {
+            new AsyncSimulator<void>(future);
+            ++check;
+        })
+    .then<void>(
+        [&check](Async::Future<void> &future) {
+            new AsyncSimulator<void>(future);
+            ++check;
+        })
+    .then<void>(
+        [&check]() {
+            ++check;
+        });
+
+    auto future = job.exec();
+    future.waitForFinished();
+
+    QVERIFY(future.isFinished());
+    QCOMPARE(check, 3);
 }
 
 
@@ -302,6 +355,25 @@ void AsyncTest::testJoinedEach()
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), expected);
 }
+
+void AsyncTest::testVoidEach()
+{
+    QList<int> check;
+    auto job = Async::start<QList<int>>(
+        []() -> QList<int> {
+            return { 1, 2, 3, 4 };
+        }).each<void, int>(
+        [&check](const int &v) {
+            check << v;
+        });
+
+    auto future = job.exec();
+
+    const QList<int> expected({ 1, 2, 3, 4 });
+    QVERIFY(future.isFinished());
+    QCOMPARE(check, expected);
+}
+
 
 
 
@@ -377,6 +449,23 @@ void AsyncTest::testJoinedReduce()
     QCOMPARE(future.value(), 10);
 }
 
+void AsyncTest::testVoidReduce()
+{
+// This must not compile (reduce with void result makes no sense)
+#ifdef TEST_BUILD_FAIL
+    auto job = Async::start<QList<int>>(
+        []() -> QList<int> {
+            return { 1, 2, 3, 4 };
+        })
+    .reduce<void, QList<int>>(
+        [](const QList<int> &list) -> int {
+            return;
+        });
+
+    auto future = job.exec();
+    QVERIFY(future.isFinished());
+#endif
+}
 
 
 
@@ -468,8 +557,6 @@ void AsyncTest::testChainingFinishedJob()
     QCOMPARE(future1.value(), 42);
     QCOMPARE(future2.value(), 84);
 }
-
-
 
 
 

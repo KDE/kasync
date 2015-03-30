@@ -150,7 +150,10 @@ class SyncThenExecutor : public Executor<typename detail::prevOut<In ...>::type,
 public:
     SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
     void previousFutureReady();
+
 private:
+    void run(std::false_type); // !std::is_void<Out>
+    void run(std::true_type);  // std::is_void<Out>
     SyncThenTask<Out, In ...> mFunc;
 };
 
@@ -170,6 +173,8 @@ public:
     SyncEachExecutor(SyncEachTask<Out, In> each, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
     void previousFutureReady();
 private:
+    void run(Async::Future<Out> *future, const typename PrevOut::value_type &arg, std::false_type); // !std::is_void<Out>
+    void run(Async::Future<Out> *future, const typename PrevOut::value_type &arg, std::true_type);  // std::is_void<Out>
     SyncEachTask<Out, In> mFunc;
 };
 
@@ -386,8 +391,8 @@ private:
     {
         static_assert(detail::isIterable<Out>::value,
                       "The 'Each' task can only be connected to a job that returns a list or an array.");
-        static_assert(detail::isIterable<OutOther>::value,
-                      "The result type of 'Each' task must be a list or an array.");
+        static_assert(std::is_void<OutOther>::value || detail::isIterable<OutOther>::value,
+                      "The result type of 'Each' task must be void, a list or an array.");
     }
 
     template<typename InOther>
@@ -603,9 +608,21 @@ void SyncThenExecutor<Out, In ...>::previousFutureReady()
         assert(this->mPrevFuture->isFinished());
     }
 
+    run(std::is_void<Out>());
+    this->mResult->setFinished();
+}
+
+template<typename Out, typename ... In>
+void SyncThenExecutor<Out, In ...>::run(std::false_type)
+{
     Out result = this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...);
     static_cast<Async::Future<Out>*>(this->mResult)->setValue(result);
-    this->mResult->setFinished();
+}
+
+template<typename Out, typename ... In>
+void SyncThenExecutor<Out, In ...>::run(std::true_type)
+{
+    this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...);
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -626,9 +643,21 @@ void SyncEachExecutor<PrevOut, Out, In>::previousFutureReady()
     }
 
     for (auto arg : this->mPrevFuture->value()) {
-        out->setValue(out->value() + this->mFunc(arg));
+        run(out, arg, std::is_void<Out>());
     }
     out->setFinished();
+}
+
+template<typename PrevOut, typename Out, typename In>
+void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> *out, const typename PrevOut::value_type &arg, std::false_type)
+{
+    out->setValue(out->value() + this->mFunc(arg));
+}
+
+template<typename PrevOut, typename Out, typename In>
+void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> * /* unushed */, const typename PrevOut::value_type &arg, std::true_type)
+{
+    this->mFunc(arg);
 }
 
 template<typename Out, typename In>
