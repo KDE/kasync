@@ -33,6 +33,11 @@
 
 #include <QDebug>
 
+#ifdef WITH_KJOB
+#include <KJob>
+#endif
+
+
 /*
  * TODO: instead of passing the future objects callbacks could be provided for result reporting (we can still use the future object internally
  */
@@ -196,10 +201,15 @@ Job<Out, In ...> start(ThenTask<Out, In ...> func);
 template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func);
 
+#ifdef WITH_KJOB
+template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
+Job<ReturnType, Args ...> start();
+#endif
+
 
 /**
  * A null job.
- * 
+ *
  * An async noop.
  *
  */
@@ -283,6 +293,11 @@ class Job : public JobBase
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> start(Async::SyncThenTask<OutOther, InOther ...> func);
 
+#ifdef WITH_KJOB
+    template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
+    friend Job<ReturnType, Args ...> start();
+#endif
+
 public:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
@@ -303,6 +318,14 @@ public:
     {
         return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(otherJob), errorFunc);
     }
+
+#ifdef WITH_KJOB
+    template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
+    Job<ReturnType, Args ...> then()
+    {
+        return start<ReturnType, KJobType, KJobResultMethod, Args ...>();
+    }
+#endif
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(EachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
@@ -441,6 +464,28 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func)
     return Job<Out, In...>(Private::ExecutorBasePtr(
         new Private::SyncThenExecutor<Out, In ...>(func, ErrorHandler(), Private::ExecutorBasePtr())));
 }
+
+#ifdef WITH_KJOB
+template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
+Job<ReturnType, Args ...> start()
+{
+    return Job<ReturnType, Args ...>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<ReturnType, Args ...>([](const Args & ... args, Async::Future<ReturnType> &future)
+            {
+                KJobType *job = new KJobType(args ...);
+                job->connect(job, &KJob::finished,
+                             [&future](KJob *job) {
+                                 if (job->error()) {
+                                     future.setError(job->error(), job->errorString());
+                                 } else {
+                                    future.setValue((static_cast<KJobType*>(job)->*KJobResultMethod)());
+                                    future.setFinished();
+                                 }
+                             });
+                job->start();
+            }, ErrorHandler(), Private::ExecutorBasePtr())));
+}
+#endif
 
 template<typename Out>
 Job<Out> null()
