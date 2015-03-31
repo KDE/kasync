@@ -65,6 +65,9 @@ private Q_SLOTS:
     void testChainingRunningJob();
     void testChainingFinishedJob();
 
+    void testLifetimeWithoutHandle();
+    void testLifetimeWithHandle();
+
     void benchmarkSyncThenExecutor();
 
 private:
@@ -558,7 +561,56 @@ void AsyncTest::testChainingFinishedJob()
     QCOMPARE(future2.value(), 84);
 }
 
+/*
+ * We want to be able to execute jobs without keeping a handle explicitly alive.
+ * If the future handle inside the continuation would keep the executor alive, that would probably already work.
+ */
+void AsyncTest::testLifetimeWithoutHandle()
+{
+    bool done = false;
+    {
+        auto job = Async::start<void>([&done](Async::Future<void> &future) {
+            QTimer *timer = new QTimer();
+            QObject::connect(timer, &QTimer::timeout,
+                             [&future, &done]() {
+                                 done = true;
+                                 future.setFinished();
+                             });
+            QObject::connect(timer, &QTimer::timeout,
+                             timer, &QObject::deleteLater);
+            timer->setSingleShot(true);
+            timer->start(500);
+        });
+        job.exec();
+    }
 
+    QTRY_VERIFY(done);
+}
+
+/*
+ * The future handle should keep the executor alive, and the future reference should probably not become invalid inside the continuation,
+ * until the job is done (alternatively a copy of the future inside the continuation should work as well).
+ */
+void AsyncTest::testLifetimeWithHandle()
+{
+    Async::Future<void> future;
+    {
+        auto job = Async::start<void>([](Async::Future<void> &future) {
+            QTimer *timer = new QTimer();
+            QObject::connect(timer, &QTimer::timeout,
+                             [&future]() {
+                                 future.setFinished();
+                             });
+            QObject::connect(timer, &QTimer::timeout,
+                             timer, &QObject::deleteLater);
+            timer->setSingleShot(true);
+            timer->start(500);
+        });
+        future = job.exec();
+    }
+
+    QTRY_VERIFY(future.isFinished());
+}
 
 void AsyncTest::benchmarkSyncThenExecutor()
 {

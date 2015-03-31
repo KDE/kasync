@@ -39,7 +39,24 @@
 
 
 /*
- * TODO: instead of passing the future objects callbacks could be provided for result reporting (we can still use the future object internally
+ * API to help write async code.
+ *
+ * This API is based around jobs that take lambdas to execute asynchronous tasks. Each async operation can take a continuation,
+ * that can then be used to execute further async operations. That way it is possible to build async chains of operations,
+ * that can be stored and executed later on. Jobs can be composed, similarly to functions.
+ *
+ * Relations between the components:
+ * * Job: description of what should happen
+ * * Executor: Running execution of a job, the process that calculates the result.
+ * * Future: Representation of the result that is being calculated
+ *
+ * Lifetime:
+ * * Before a job is executed is treated like a normal value on the stack.
+ * * As soon as the job is executed, a heap allocated executor keeps the task running until complete. The associated future handle remains
+ *   valid until the task is complete. To abort a job it has to be killed through the future handle.
+ *   TODO: Can we tie the lifetime of the executor to the last available future handle?
+ *
+ * TODO: Progress reporting through future
  */
 namespace Async {
 
