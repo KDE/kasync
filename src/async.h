@@ -57,6 +57,9 @@
  *   TODO: Can we tie the lifetime of the executor to the last available future handle?
  *
  * TODO: Progress reporting through future
+ * TODO: Possibility to abort a job through future (perhaps optional?)
+ * TODO: Support for timeout, specified during exec call, after which the error handler gets called with a defined errorCode.
+ * TODO: Repeated execution of a job to facilitate i.e. an async while loop of a job?
  */
 namespace Async {
 
