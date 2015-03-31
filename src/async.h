@@ -85,6 +85,7 @@ template<typename Out, typename In>
 using SyncReduceTask = typename detail::identity<std::function<Out(In)>>::type;
 
 using ErrorHandler = std::function<void(int, const QString &)>;
+using Condition = std::function<bool()>;
 
 namespace Private
 {
@@ -225,6 +226,9 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func);
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
 Job<ReturnType, Args ...> start();
 #endif
+
+template<typename Out>
+Job<Out> dowhile(Condition condition, ThenTask<void> func);
 
 
 /**
@@ -506,6 +510,31 @@ Job<ReturnType, Args ...> start()
             }, ErrorHandler(), Private::ExecutorBasePtr())));
 }
 #endif
+
+static void asyncWhile(const std::function<void(std::function<void(bool)>)> &body, const std::function<void()> &completionHandler) {
+    body([body, completionHandler](bool complete) {
+        if (complete) {
+            completionHandler();
+        } else {
+            asyncWhile(body, completionHandler);
+        }
+    });
+}
+    }
+template<typename Out>
+Job<Out> dowhile(Condition condition, ThenTask<void> body)
+{
+    return Async::start<void>([body, condition](Async::Future<void> &future) {
+        asyncWhile([condition, body](std::function<void(bool)> whileCallback) {
+            Async::start<void>(body).then<void>([whileCallback, condition]() {
+                whileCallback(!condition());
+            }).exec();
+        },
+        [&future]() { //while complete
+            future.setFinished();
+        });
+    });
+}
 
 template<typename Out>
 Job<Out> null()
