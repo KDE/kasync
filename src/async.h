@@ -114,6 +114,7 @@ public:
 protected:
     ExecutorBase(const ExecutorBasePtr &parent);
 
+    ExecutorBasePtr mSelf;
     ExecutorBasePtr mPrev;
     FutureBase *mResult;
     bool mIsRunning;
@@ -429,6 +430,11 @@ public:
 
     Async::Future<Out> exec()
     {
+        // Have the top executor hold reference to itself during the execution.
+        // This ensures that even if the Job goes out of scope, the full Executor
+        // chain will not be destroyed.
+        // The executor will remove the self-reference once it's Future is finished.
+        mExecutor->mSelf = mExecutor;
         mExecutor->exec();
         return result();
     }
@@ -471,7 +477,7 @@ private:
                              [watcher, &future]() {
                                  Async::detail::copyFutureValue(watcher->future(), future);
                                  future.setFinished();
-                                 watcher->deleteLater();
+                                 delete watcher;
                              });
             watcher->setFuture(job.exec(in ...));
         };
@@ -569,10 +575,12 @@ void Executor<PrevOut, Out, In ...>::exec()
     mResult = new Async::Future<Out>();
     auto fw = new Async::FutureWatcher<Out>();
     QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
-                     [&]() {
+                     [fw, this]() {
                          mIsFinished = true;
-                         fw->deleteLater();
+                         mSelf.clear();
+                         delete fw;
                      });
+    fw->setFuture(*static_cast<Async::Future<Out>*>(mResult));
 
     if (!mPrevFuture || mPrevFuture->isFinished()) {
         if (mPrevFuture && mPrevFuture->errorCode() != 0) {
@@ -593,7 +601,7 @@ void Executor<PrevOut, Out, In ...>::exec()
                          [futureWatcher, this]() {
                              auto prevFuture = futureWatcher->future();
                              assert(prevFuture.isFinished());
-                             futureWatcher->deleteLater();
+                             delete futureWatcher;
                              if (prevFuture.errorCode() != 0) {
                                  if (mErrorFunc) {
                                      mErrorFunc(prevFuture.errorCode(), prevFuture.errorMessage());
