@@ -16,6 +16,7 @@
  */
 
 #include "future.h"
+#include "async.h"
 
 using namespace Async;
 
@@ -30,6 +31,27 @@ FutureBase::FutureBase(const Async::FutureBase &other)
 FutureBase::~FutureBase()
 {
 }
+
+FutureBase::PrivateBase::PrivateBase(const Private::ExecutionPtr &execution)
+    : mExecution(execution)
+{
+}
+
+FutureBase::PrivateBase::~PrivateBase()
+{
+    Private::ExecutionPtr executionPtr = mExecution.toStrongRef();
+    if (executionPtr) {
+        executionPtr->releaseFuture();
+        releaseExecution();
+    }
+}
+
+void FutureBase::PrivateBase::releaseExecution()
+{
+    mExecution.clear();
+}
+
+
 
 FutureWatcherBase::FutureWatcherBase(QObject *parent)
     : QObject(parent)

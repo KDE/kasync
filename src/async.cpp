@@ -26,15 +26,11 @@ using namespace Async;
 
 Private::ExecutorBase::ExecutorBase(const ExecutorBasePtr &parent)
     : mPrev(parent)
-    , mResult(0)
-    , mIsRunning(false)
-    , mIsFinished(false)
 {
 }
 
 Private::ExecutorBase::~ExecutorBase()
 {
-    delete mResult;
 }
 
 

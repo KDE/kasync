@@ -68,9 +68,6 @@ private Q_SLOTS:
     void testLifetimeWithoutHandle();
     void testLifetimeWithHandle();
 
-    void testWhile();
-    void testWhileWithoutCondition();
-
     void benchmarkSyncThenExecutor();
 
 private:
@@ -343,6 +340,8 @@ void AsyncTest::testSyncEach()
 
 void AsyncTest::testJoinedEach()
 {
+    QFAIL("Crashes due to bad lifetime of Future");
+
     auto job1 = Async::start<QList<int>, int>(
         [](int v, Async::Future<QList<int>> &future) {
             new AsyncSimulator<QList<int>>(future, { v * 2 });
@@ -380,39 +379,6 @@ void AsyncTest::testVoidEach()
     QCOMPARE(check, expected);
 }
 
-void AsyncTest::testWhile()
-{
-
-    QList<int> processed;
-    QList<int> list({1, 2, 3, 4});
-    auto it = QSharedPointer<QListIterator<int> >::create(list);
-    Async::dowhile(
-        [it]() -> bool { return it->hasNext(); },
-        [it, &processed](Async::Future<void> future) {
-            auto value = it->next();
-            processed << value;
-            future.setFinished();
-        }
-    ).exec().waitForFinished();
-    QCOMPARE(processed, list);
-}
-
-void AsyncTest::testWhileWithoutCondition()
-{
-
-    QList<int> processed;
-    QList<int> list({1, 2, 3, 4});
-    auto it = QSharedPointer<QListIterator<int> >::create(list);
-    Async::dowhile(
-        [it, &processed](Async::Future<bool> future) {
-            auto value = it->next();
-            processed << value;
-            future.setValue(it->hasNext());
-            future.setFinished();
-        }
-    ).exec().waitForFinished();
-    QCOMPARE(processed, list);
-}
 
 
 
@@ -563,7 +529,12 @@ void AsyncTest::testChainingRunningJob()
     QVERIFY(!future1.isFinished());
     future2.waitForFinished();
 
+    QEXPECT_FAIL("", "Chaining new job to a running job no longer executes the new job. "
+                     "This is a trade-off for being able to re-execute single job multiple times.",
+                 Abort);
+
     QCOMPARE(check, 2);
+
     QVERIFY(future1.isFinished());
     QVERIFY(future2.isFinished());
     QCOMPARE(future1.value(), 42);
@@ -592,7 +563,12 @@ void AsyncTest::testChainingFinishedJob()
     auto future2 = job2.exec();
     QVERIFY(future2.isFinished());
 
+    QEXPECT_FAIL("", "Resuming finished job by chaining a new job and calling exec() is no longer suppported. "
+                     "This is a trade-off for being able to re-execute single job multiple times.",
+                 Abort);
+
     QCOMPARE(check, 2);
+
     QCOMPARE(future1.value(), 42);
     QCOMPARE(future2.value(), 84);
 }

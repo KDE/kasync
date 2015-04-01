@@ -93,6 +93,49 @@ namespace Private
 class ExecutorBase;
 typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
 
+struct Execution {
+    Execution(const ExecutorBasePtr &executor)
+        : executor(executor)
+        , resultBase(nullptr)
+        , isRunning(false)
+        , isFinished(false)
+    {}
+
+    ~Execution()
+    {
+        if (resultBase) {
+            resultBase->releaseExecution();
+            delete resultBase;
+        }
+        prevExecution.reset();
+    }
+
+    void setFinished()
+    {
+        isFinished = true;
+        executor.clear();
+    }
+
+    template<typename T>
+    Async::Future<T>* result()
+    {
+        return static_cast<Async::Future<T>*>(resultBase);
+    }
+
+    void releaseFuture()
+    {
+        resultBase = 0;
+    }
+
+    ExecutorBasePtr executor;
+    FutureBase *resultBase;
+    bool isRunning;
+    bool isFinished;
+
+    ExecutionPtr prevExecution;
+};
+
+typedef QSharedPointer<Execution> ExecutionPtr;
 
 class ExecutorBase
 {
@@ -104,21 +147,15 @@ class ExecutorBase
 
 public:
     virtual ~ExecutorBase();
-    virtual void exec() = 0;
-
-    inline FutureBase* result() const
-    {
-        return mResult;
-    }
+    virtual ExecutionPtr exec(const ExecutorBasePtr &self) = 0;
 
 protected:
     ExecutorBase(const ExecutorBasePtr &parent);
 
-    ExecutorBasePtr mSelf;
+    template<typename T>
+    Async::Future<T>* createFuture(const ExecutionPtr &execution) const;
+
     ExecutorBasePtr mPrev;
-    FutureBase *mResult;
-    bool mIsRunning;
-    bool mIsFinished;
 };
 
 template<typename PrevOut, typename Out, typename ... In>
@@ -128,17 +165,13 @@ protected:
     Executor(ErrorHandler errorHandler, const Private::ExecutorBasePtr &parent)
         : ExecutorBase(parent)
         , mErrorFunc(errorHandler)
-        , mPrevFuture(0)
     {}
     virtual ~Executor() {}
-    inline Async::Future<PrevOut>* chainup();
-    virtual void previousFutureReady() = 0;
+    virtual void run(const ExecutionPtr &execution) = 0;
 
-    void exec();
+    ExecutionPtr exec(const ExecutorBasePtr &self);
 
-    //std::function<void(const In& ..., Async::Future<Out> &)> mFunc;
     std::function<void(int, const QString &)> mErrorFunc;
-    Async::Future<PrevOut> *mPrevFuture;
 };
 
 template<typename Out, typename ... In>
@@ -146,7 +179,7 @@ class ThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out,
 {
 public:
     ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
-    void previousFutureReady();
+    void run(const ExecutionPtr &execution);
 private:
     ThenTask<Out, In ...> mFunc;
 };
@@ -156,7 +189,7 @@ class EachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
     EachExecutor(EachTask<Out, In> each, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
-    void previousFutureReady();
+    void run(const ExecutionPtr &execution);
 private:
     EachTask<Out, In> mFunc;
     QVector<Async::FutureWatcher<PrevOut>*> mFutureWatchers;
@@ -176,11 +209,11 @@ class SyncThenExecutor : public Executor<typename detail::prevOut<In ...>::type,
 {
 public:
     SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
-    void previousFutureReady();
+    void run(const ExecutionPtr &execution);
 
 private:
-    void run(std::false_type); // !std::is_void<Out>
-    void run(std::true_type);  // std::is_void<Out>
+    void run(const ExecutionPtr &execution, std::false_type); // !std::is_void<Out>
+    void run(const ExecutionPtr &execution, std::true_type);  // std::is_void<Out>
     SyncThenTask<Out, In ...> mFunc;
 };
 
@@ -198,7 +231,7 @@ class SyncEachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
     SyncEachExecutor(SyncEachTask<Out, In> each, ErrorHandler errorHandler, const ExecutorBasePtr &parent);
-    void previousFutureReady();
+    void run(const ExecutionPtr &execution);
 private:
     void run(Async::Future<Out> *future, const typename PrevOut::value_type &arg, std::false_type); // !std::is_void<Out>
     void run(Async::Future<Out> *future, const typename PrevOut::value_type &arg, std::true_type);  // std::is_void<Out>
@@ -430,18 +463,10 @@ public:
 
     Async::Future<Out> exec()
     {
-        // Have the top executor hold reference to itself during the execution.
-        // This ensures that even if the Job goes out of scope, the full Executor
-        // chain will not be destroyed.
-        // The executor will remove the self-reference once it's Future is finished.
-        mExecutor->mSelf = mExecutor;
-        mExecutor->exec();
-        return result();
-    }
+        Private::ExecutionPtr execution = mExecutor->exec(mExecutor);
+        Async::Future<Out> result = *execution->result<Out>();
 
-    Async::Future<Out> result() const
-    {
-        return *static_cast<Async::Future<Out>*>(mExecutor->result());
+        return result;
     }
 
 private:
@@ -549,74 +574,75 @@ Job<Out> error(int errorCode, const QString &errorMessage)
 
 namespace Private {
 
-template<typename PrevOut, typename Out, typename ... In>
-Future<PrevOut>* Executor<PrevOut, Out, In ...>::chainup()
+template<typename T>
+Async::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) const
 {
-    if (mPrev) {
-        mPrev->exec();
-        return static_cast<Async::Future<PrevOut>*>(mPrev->result());
-    } else {
-        return nullptr;
-    }
+    return new Async::Future<T>(execution);
 }
 
 template<typename PrevOut, typename Out, typename ... In>
-void Executor<PrevOut, Out, In ...>::exec()
+ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
 {
-    // Don't chain up to job that already is running (or is finished)
-    if (mPrev && !mPrev->mIsRunning & !mPrev->mIsFinished) {
-        mPrevFuture = chainup();
+    // Passing 'self' to execution ensures that the Executor chain remains
+    // valid until the entire execution is finished
+    ExecutionPtr execution = ExecutionPtr::create(self);
+
+    // chainup
+    execution->prevExecution = mPrev ? mPrev->exec(mPrev) : ExecutionPtr();
+    /*
     } else if (mPrev && !mPrevFuture) {
         // If previous job is running or finished, just get it's future
         mPrevFuture = static_cast<Async::Future<PrevOut>*>(mPrev->result());
     }
+    */
 
-    // Initialize our future
-    mResult = new Async::Future<Out>();
+    execution->resultBase = this->createFuture<Out>(execution);
     auto fw = new Async::FutureWatcher<Out>();
     QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
-                     [fw, this]() {
-                         mIsFinished = true;
-                         mSelf.clear();
+                     [fw, execution, this]() {
+                         execution->setFinished();
                          delete fw;
                      });
-    fw->setFuture(*static_cast<Async::Future<Out>*>(mResult));
+    fw->setFuture(*execution->result<Out>());
 
-    if (!mPrevFuture || mPrevFuture->isFinished()) {
-        if (mPrevFuture && mPrevFuture->errorCode() != 0) {
+    Async::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>() : nullptr;
+    if (!prevFuture || prevFuture->isFinished()) {
+        if (prevFuture && prevFuture->errorCode() != 0) {
             if (mErrorFunc) {
-                mErrorFunc(mPrevFuture->errorCode(), mPrevFuture->errorMessage());
-                mResult->setFinished();
-                mIsFinished = true;
-                return;
+                mErrorFunc(prevFuture->errorCode(), prevFuture->errorMessage());
+                execution->resultBase->setFinished();
+                execution->setFinished();
+                return execution;
             } else {
                 // Propagate the error to next caller
             }
         }
-        mIsRunning = true;
-        previousFutureReady();
+        execution->isRunning = true;
+        run(execution);
     } else {
         auto futureWatcher = new Async::FutureWatcher<PrevOut>();
         QObject::connect(futureWatcher, &Async::FutureWatcher<PrevOut>::futureReady,
-                         [futureWatcher, this]() {
+                         [futureWatcher, execution, this]() {
                              auto prevFuture = futureWatcher->future();
                              assert(prevFuture.isFinished());
                              delete futureWatcher;
                              if (prevFuture.errorCode() != 0) {
                                  if (mErrorFunc) {
                                      mErrorFunc(prevFuture.errorCode(), prevFuture.errorMessage());
-                                     mResult->setFinished();
+                                     execution->resultBase->setFinished();
                                      return;
                                  } else {
                                      // Propagate the error to next caller
                                  }
                              }
-                             mIsRunning = true;
-                             previousFutureReady();
+                             execution->isRunning = true;
+                             run(execution);
                          });
 
-        futureWatcher->setFuture(*mPrevFuture);
+        futureWatcher->setFuture(*static_cast<Async::Future<PrevOut>*>(prevFuture));
     }
+
+    return execution;
 }
 
 
@@ -628,14 +654,15 @@ ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler
 }
 
 template<typename Out, typename ... In>
-void ThenExecutor<Out, In ...>::previousFutureReady()
+void ThenExecutor<Out, In ...>::run(const ExecutionPtr &execution)
 {
-    if (this->mPrevFuture) {
-        assert(this->mPrevFuture->isFinished());
+    Async::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
+    if (execution->prevExecution) {
+        prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
+        assert(prevFuture->isFinished());
     }
 
-    this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...,
-                *static_cast<Async::Future<Out>*>(this->mResult));
+    this->mFunc(prevFuture ? prevFuture->value() : In() ..., *execution->result<Out>());
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -646,33 +673,37 @@ EachExecutor<PrevOut, Out, In>::EachExecutor(EachTask<Out, In> each, ErrorHandle
 }
 
 template<typename PrevOut, typename Out, typename In>
-void EachExecutor<PrevOut, Out, In>::previousFutureReady()
+void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
 {
-    assert(this->mPrevFuture->isFinished());
-    auto out = static_cast<Async::Future<Out>*>(this->mResult);
-    if (this->mPrevFuture->value().isEmpty()) {
+    assert(execution->prevExecution);
+    auto prevFuture = execution->prevExecution->result<PrevOut>();
+    assert(prevFuture->isFinished());
+
+    auto out = execution->result<Out>();
+    if (prevFuture->value().isEmpty()) {
         out->setFinished();
         return;
     }
 
-    for (auto arg : this->mPrevFuture->value()) {
-        auto future = new Async::Future<Out>;
-        this->mFunc(arg, *future);
+    for (auto arg : prevFuture->value()) {
+        Async::Future<Out> future;
+        this->mFunc(arg, future);
         auto fw = new Async::FutureWatcher<Out>();
         mFutureWatchers.append(fw);
         QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
-                         [out, future, fw, this]() {
-                             assert(future->isFinished());
+                         [out, fw, this]() {
+                             auto future = fw->future();
+                             assert(future.isFinished());
                              const int index = mFutureWatchers.indexOf(fw);
                              assert(index > -1);
                              mFutureWatchers.removeAt(index);
-                             out->setValue(out->value() + future->value());
-                             delete future;
+                             out->setValue(out->value() + future.value());
                              if (mFutureWatchers.isEmpty()) {
                                  out->setFinished();
                              }
+                             delete fw;
                          });
-        fw->setFuture(*future);
+        fw->setFuture(future);
     }
 }
 
@@ -690,27 +721,37 @@ SyncThenExecutor<Out, In ...>::SyncThenExecutor(SyncThenTask<Out, In ...> then, 
 }
 
 template<typename Out, typename ... In>
-void SyncThenExecutor<Out, In ...>::previousFutureReady()
+void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution)
 {
-    if (this->mPrevFuture) {
-        assert(this->mPrevFuture->isFinished());
+    if (execution->prevExecution) {
+        assert(execution->prevExecution->resultBase->isFinished());
     }
 
-    run(std::is_void<Out>());
-    this->mResult->setFinished();
+    run(execution, std::is_void<Out>());
+    execution->resultBase->setFinished();
 }
 
 template<typename Out, typename ... In>
-void SyncThenExecutor<Out, In ...>::run(std::false_type)
+void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution, std::false_type)
 {
-    Out result = this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...);
-    static_cast<Async::Future<Out>*>(this->mResult)->setValue(result);
+    Async::Future<typename detail::prevOut<In ...>::type> *prevFuture =
+        execution->prevExecution
+            ? execution->prevExecution->result<typename detail::prevOut<In ...>::type>()
+            : nullptr;
+    (void) prevFuture; // silence 'set but not used' warning
+    Async::Future<Out> *future = execution->result<Out>();
+    future->setValue(this->mFunc(prevFuture ? prevFuture->value() : In() ...));
 }
 
 template<typename Out, typename ... In>
-void SyncThenExecutor<Out, In ...>::run(std::true_type)
+void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution, std::true_type)
 {
-    this->mFunc(this->mPrevFuture ? this->mPrevFuture->value() : In() ...);
+    Async::Future<typename detail::prevOut<In ...>::type> *prevFuture =
+        execution->prevExecution
+            ? execution->prevExecution->result<typename detail::prevOut<In ...>::type>()
+            : nullptr;
+    (void) prevFuture; // silence 'set but not used' warning
+    this->mFunc(prevFuture ? prevFuture->value() : In() ...);
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -721,16 +762,19 @@ SyncEachExecutor<PrevOut, Out, In>::SyncEachExecutor(SyncEachTask<Out, In> each,
 }
 
 template<typename PrevOut, typename Out, typename In>
-void SyncEachExecutor<PrevOut, Out, In>::previousFutureReady()
+void SyncEachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
 {
-    assert(this->mPrevFuture->isFinished());
-    auto out = static_cast<Async::Future<Out>*>(this->mResult);
-    if (this->mPrevFuture->value().isEmpty()) {
+    assert(execution->prevExecution);
+    auto *prevFuture = execution->prevExecution->result<PrevOut>();
+    assert(prevFuture->isFinished());
+
+    auto out = execution->result<Out>();
+    if (prevFuture->value().isEmpty()) {
         out->setFinished();
         return;
     }
 
-    for (auto arg : this->mPrevFuture->value()) {
+    for (auto arg : prevFuture->value()) {
         run(out, arg, std::is_void<Out>());
     }
     out->setFinished();
@@ -743,7 +787,7 @@ void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> *out, const type
 }
 
 template<typename PrevOut, typename Out, typename In>
-void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> * /* unushed */, const typename PrevOut::value_type &arg, std::true_type)
+void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> * /* unused */, const typename PrevOut::value_type &arg, std::true_type)
 {
     this->mFunc(arg);
 }

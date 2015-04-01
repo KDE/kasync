@@ -29,8 +29,18 @@ class QEventLoop;
 
 namespace Async {
 
+namespace Private {
+class Execution;
+class ExecutorBase;
+
+typedef QSharedPointer<Execution> ExecutionPtr;
+
+}
+
 class FutureBase
 {
+    friend class Async::Private::Execution;
+
 public:
     virtual ~FutureBase();
 
@@ -39,6 +49,20 @@ public:
     virtual void setError(int code = 1, const QString &message = QString()) = 0;
 
 protected:
+    virtual void releaseExecution() = 0;
+
+    class PrivateBase : public QSharedData
+    {
+    public:
+        PrivateBase(const Async::Private::ExecutionPtr &execution);
+        virtual ~PrivateBase();
+
+        void releaseExecution();
+
+    private:
+        QWeakPointer<Async::Private::Execution> mExecution;
+    };
+
     FutureBase();
     FutureBase(const FutureBase &other);
 };
@@ -104,9 +128,9 @@ public:
     }
 
 protected:
-    FutureGeneric()
+    FutureGeneric(const Async::Private::ExecutionPtr &execution)
         : FutureBase()
-        , d(new Private)
+        , d(new Private(execution))
     {}
 
     FutureGeneric(const FutureGeneric<T> &other)
@@ -114,10 +138,15 @@ protected:
         , d(other.d)
     {}
 
-    class Private : public QSharedData
+    class Private : public FutureBase::PrivateBase
     {
     public:
-        Private() : QSharedData(), finished(false), errorCode(0) {}
+        Private(const Async::Private::ExecutionPtr &execution)
+            : FutureBase::PrivateBase(execution)
+            , finished(false)
+            , errorCode(0)
+        {}
+
         typename std::conditional<std::is_void<T>::value, int /* dummy */, T>::type
         value;
 
@@ -129,6 +158,11 @@ protected:
 
     QExplicitlySharedDataPointer<Private> d;
 
+    void releaseExecution()
+    {
+        d->releaseExecution();
+    }
+
     void addWatcher(FutureWatcher<T> *watcher)
     {
         d->watchers.append(QPointer<FutureWatcher<T>>(watcher));
@@ -138,9 +172,14 @@ protected:
 template<typename T>
 class Future : public FutureGeneric<T>
 {
+    friend class Async::Private::ExecutorBase;
+
+    template<typename T_>
+    friend class Async::FutureWatcher;
+
 public:
     Future()
-        : FutureGeneric<T>()
+        : FutureGeneric<T>(Async::Private::ExecutionPtr())
     {}
 
     Future(const Future<T> &other)
@@ -156,18 +195,34 @@ public:
     {
         return this->d->value;
     }
+
+protected:
+    Future(const Async::Private::ExecutionPtr &execution)
+        : FutureGeneric<T>(execution)
+    {}
+
 };
 
 template<>
 class Future<void> : public FutureGeneric<void>
 {
+    friend class Async::Private::ExecutorBase;
+
+    template<typename T_>
+    friend class Async::FutureWatcher;
+
 public:
     Future()
-        : FutureGeneric<void>()
+        : FutureGeneric<void>(Async::Private::ExecutionPtr())
     {}
 
     Future(const Future<void> &other)
         : FutureGeneric<void>(other)
+    {}
+
+protected:
+    Future(const Async::Private::ExecutionPtr &execution)
+        : FutureGeneric<void>(execution)
     {}
 };
 
@@ -177,7 +232,7 @@ class FutureWatcherBase : public QObject
     Q_OBJECT
 
 protected:
-    FutureWatcherBase(QObject *parent = 0);
+    FutureWatcherBase(QObject *parent = nullptr);
     virtual ~FutureWatcherBase();
 
 Q_SIGNALS:
@@ -190,7 +245,7 @@ class FutureWatcher : public FutureWatcherBase
     friend class Async::FutureGeneric<T>;
 
 public:
-    FutureWatcher(QObject *parent = 0)
+    FutureWatcher(QObject *parent = nullptr)
         : FutureWatcherBase(parent)
     {}
 
