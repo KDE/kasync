@@ -227,8 +227,19 @@ template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResu
 Job<ReturnType, Args ...> start();
 #endif
 
-template<typename Out>
-Job<Out> dowhile(Condition condition, ThenTask<void> func);
+/**
+ * Async while loop.
+ * 
+ * The loop continues while @param condition returns true.
+ */
+Job<void> dowhile(Condition condition, ThenTask<void> func);
+
+/**
+ * Async while loop.
+ *
+ * Loop continues while body returns true.
+ */
+Job<void> dowhile(ThenTask<bool> body);
 
 
 /**
@@ -248,7 +259,6 @@ Job<Out> null();
  */
 template<typename Out>
 Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
-
 
 class JobBase
 {
@@ -511,30 +521,6 @@ Job<ReturnType, Args ...> start()
 }
 #endif
 
-static void asyncWhile(const std::function<void(std::function<void(bool)>)> &body, const std::function<void()> &completionHandler) {
-    body([body, completionHandler](bool complete) {
-        if (complete) {
-            completionHandler();
-        } else {
-            asyncWhile(body, completionHandler);
-        }
-    });
-}
-    }
-template<typename Out>
-Job<Out> dowhile(Condition condition, ThenTask<void> body)
-{
-    return Async::start<void>([body, condition](Async::Future<void> &future) {
-        asyncWhile([condition, body](std::function<void(bool)> whileCallback) {
-            Async::start<void>(body).then<void>([whileCallback, condition]() {
-                whileCallback(!condition());
-            }).exec();
-        },
-        [&future]() { //while complete
-            future.setFinished();
-        });
-    });
-}
 
 template<typename Out>
 Job<Out> null()

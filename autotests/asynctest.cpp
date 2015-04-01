@@ -69,6 +69,7 @@ private Q_SLOTS:
     void testLifetimeWithHandle();
 
     void testWhile();
+    void testWhileWithoutCondition();
 
     void benchmarkSyncThenExecutor();
 
@@ -385,7 +386,7 @@ void AsyncTest::testWhile()
     QList<int> processed;
     QList<int> list({1, 2, 3, 4});
     auto it = QSharedPointer<QListIterator<int> >::create(list);
-    Async::dowhile<void>(
+    Async::dowhile(
         [it]() -> bool { return it->hasNext(); },
         [it, &processed](Async::Future<void> future) {
             auto value = it->next();
@@ -396,6 +397,22 @@ void AsyncTest::testWhile()
     QCOMPARE(processed, list);
 }
 
+void AsyncTest::testWhileWithoutCondition()
+{
+
+    QList<int> processed;
+    QList<int> list({1, 2, 3, 4});
+    auto it = QSharedPointer<QListIterator<int> >::create(list);
+    Async::dowhile(
+        [it, &processed](Async::Future<bool> future) {
+            auto value = it->next();
+            processed << value;
+            future.setValue(it->hasNext());
+            future.setFinished();
+        }
+    ).exec().waitForFinished();
+    QCOMPARE(processed, list);
+}
 
 
 

@@ -47,3 +47,43 @@ JobBase::~JobBase()
 {
 }
 
+static void asyncWhile(const std::function<void(std::function<void(bool)>)> &body, const std::function<void()> &completionHandler) {
+    body([body, completionHandler](bool complete) {
+        if (complete) {
+            completionHandler();
+        } else {
+            asyncWhile(body, completionHandler);
+        }
+    });
+}
+
+Job<void> Async::dowhile(Condition condition, ThenTask<void> body)
+{
+    return Async::start<void>([body, condition](Async::Future<void> &future) {
+        asyncWhile([condition, body](std::function<void(bool)> whileCallback) {
+            Async::start<void>(body).then<void>([whileCallback, condition]() {
+                whileCallback(!condition());
+            }).exec();
+        },
+        [&future]() { //while complete
+            future.setFinished();
+        });
+    });
+}
+
+Job<void> Async::dowhile(ThenTask<bool> body)
+{
+    return Async::start<void>([body](Async::Future<void> &future) {
+        asyncWhile([body](std::function<void(bool)> whileCallback) {
+            Async::start<bool>(body).then<bool, bool>([whileCallback](bool result) {
+                whileCallback(!result);
+                //FIXME this return value is only required because .then<bool, void> doesn't work
+                return true;
+            }).exec();
+        },
+        [&future]() { //while complete
+            future.setFinished();
+        });
+    });
+}
+
