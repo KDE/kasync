@@ -70,7 +70,6 @@ private Q_SLOTS:
     void testLifetimeWithHandle();
 
     void benchmarkSyncThenExecutor();
-    void benchmarkAllTests();
 
 private:
     template<typename T>
@@ -669,34 +668,6 @@ void AsyncTest::benchmarkSyncThenExecutor()
        job.exec();
     }
 }
-
-void AsyncTest::benchmarkAllTests()
-{
-    QBENCHMARK {
-        testSyncPromises();
-        testAsyncPromises();
-        testAsyncPromises2();
-        testNestedAsync();
-        testStartValue();
-
-        testAsyncThen();
-        testSyncThen();
-        testJoinedThen();
-        testVoidThen();
-
-        testAsyncEach();
-        testSyncEach();
-        testJoinedEach();
-        testVoidEach();
-
-        testAsyncReduce();
-        testSyncReduce();
-        testJoinedReduce();
-        testVoidReduce();
-    }
-}
-
-
 
 QTEST_MAIN(AsyncTest);
 
