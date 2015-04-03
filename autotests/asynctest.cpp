@@ -60,6 +60,7 @@ private Q_SLOTS:
     void testJoinedReduce();
     void testVoidReduce();
 
+    void testProgressReporting();
     void testErrorHandler();
 
     void testChainingRunningJob();
@@ -69,6 +70,7 @@ private Q_SLOTS:
     void testLifetimeWithHandle();
 
     void benchmarkSyncThenExecutor();
+    void benchmarkAllTests();
 
 private:
     template<typename T>
@@ -471,6 +473,40 @@ void AsyncTest::testVoidReduce()
 }
 
 
+void AsyncTest::testProgressReporting()
+{
+    static int progress;
+    progress = 0;
+
+    auto job = Async::start<void>(
+        [](Async::Future<void> &f) {
+            QTimer *timer = new QTimer();
+            connect(timer, &QTimer::timeout,
+                    [&f, timer]() {
+                        f.setProgress(++progress);
+                        if (progress == 100) {
+                            timer->stop();
+                            timer->deleteLater();
+                            f.setFinished();
+                        }
+                    });
+            timer->start(1);
+        });
+
+    int progressCheck = 0;
+    Async::FutureWatcher<void> watcher;
+    connect(&watcher, &Async::FutureWatcher<void>::futureProgress,
+            [&progressCheck](qreal progress) {
+                progressCheck++;
+                // FIXME: Don't use Q_ASSERT in unit tests
+                Q_ASSERT((int) progress == progressCheck);
+            });
+    watcher.setFuture(job.exec());
+    watcher.future().waitForFinished();
+
+    QVERIFY(watcher.future().isFinished());
+    QCOMPARE(progressCheck, 100);
+}
 
 void AsyncTest::testErrorHandler()
 {
@@ -631,6 +667,32 @@ void AsyncTest::benchmarkSyncThenExecutor()
 
     QBENCHMARK {
        job.exec();
+    }
+}
+
+void AsyncTest::benchmarkAllTests()
+{
+    QBENCHMARK {
+        testSyncPromises();
+        testAsyncPromises();
+        testAsyncPromises2();
+        testNestedAsync();
+        testStartValue();
+
+        testAsyncThen();
+        testSyncThen();
+        testJoinedThen();
+        testVoidThen();
+
+        testAsyncEach();
+        testSyncEach();
+        testJoinedEach();
+        testVoidEach();
+
+        testAsyncReduce();
+        testSyncReduce();
+        testJoinedReduce();
+        testVoidReduce();
     }
 }
 

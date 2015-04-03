@@ -54,6 +54,9 @@ public:
     int errorCode() const;
     QString errorMessage() const;
 
+    void setProgress(qreal progress);
+    void setProgress(int processed, int total);
+
 protected:
     class PrivateBase : public QSharedData
     {
@@ -197,12 +200,14 @@ class FutureWatcherBase : public QObject
 
 Q_SIGNALS:
     void futureReady();
+    void futureProgress(qreal progress);
 
 protected:
     FutureWatcherBase(QObject *parent = nullptr);
     virtual ~FutureWatcherBase();
 
     void futureReadyCallback();
+    void futureProgressCallback(qreal progress);
 
     void setFutureImpl(const Async::FutureBase &future);
 

@@ -56,7 +56,7 @@
  *   valid until the task is complete. To abort a job it has to be killed through the future handle.
  *   TODO: Can we tie the lifetime of the executor to the last available future handle?
  *
- * TODO: Progress reporting through future
+ * TODO: Composed progress reporting
  * TODO: Possibility to abort a job through future (perhaps optional?)
  * TODO: Support for timeout, specified during exec call, after which the error handler gets called with a defined errorCode.
  */

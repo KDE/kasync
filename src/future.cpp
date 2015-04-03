@@ -102,6 +102,21 @@ QString FutureBase::errorMessage() const
     return d->errorMessage;
 }
 
+void FutureBase::setProgress(int processed, int total)
+{
+    setProgress((qreal) processed / total);
+}
+
+void FutureBase::setProgress(qreal progress)
+{
+    for (auto watcher : d->watchers) {
+        if (watcher) {
+            watcher->futureProgressCallback(progress);
+        }
+    }
+}
+
+
 
 void FutureBase::addWatcher(FutureWatcherBase* watcher)
 {
@@ -126,6 +141,11 @@ FutureWatcherBase::~FutureWatcherBase()
 void FutureWatcherBase::futureReadyCallback()
 {
     Q_EMIT futureReady();
+}
+
+void FutureWatcherBase::futureProgressCallback(qreal progress)
+{
+    Q_EMIT futureProgress(progress);
 }
 
 void FutureWatcherBase::setFutureImpl(const FutureBase &future)
