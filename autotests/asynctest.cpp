@@ -340,8 +340,6 @@ void AsyncTest::testSyncEach()
 
 void AsyncTest::testJoinedEach()
 {
-    QFAIL("Crashes due to bad lifetime of Future");
-
     auto job1 = Async::start<QList<int>, int>(
         [](int v, Async::Future<QList<int>> &future) {
             new AsyncSimulator<QList<int>>(future, { v * 2 });

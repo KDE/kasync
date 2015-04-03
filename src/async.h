@@ -499,9 +499,14 @@ private:
             auto job = otherJob;
             FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
             QObject::connect(watcher, &FutureWatcherBase::futureReady,
-                             [watcher, &future]() {
-                                 Async::detail::copyFutureValue(watcher->future(), future);
-                                 future.setFinished();
+                             [watcher, future]() {
+                                 // FIXME: We pass future by value, because using reference causes the
+                                 // future to get deleted before this lambda is invoked, leading to crash
+                                 // in copyFutureValue()
+                                 // copy by value is const
+                                 auto outFuture = future;
+                                 Async::detail::copyFutureValue(watcher->future(), outFuture);
+                                 outFuture.setFinished();
                                  delete watcher;
                              });
             watcher->setFuture(job.exec(in ...));
