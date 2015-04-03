@@ -46,15 +46,18 @@
  * that can be stored and executed later on. Jobs can be composed, similarly to functions.
  *
  * Relations between the components:
- * * Job: description of what should happen
- * * Executor: Running execution of a job, the process that calculates the result.
+ * * Job: API wrapper around Executors chain. Can be destroyed while still running,
+ *        because the actual execution happens in the background
+ * * Executor: Describes task to execute. Executors form a linked list matching the
+ *        order in which they will be executed. The Executor chain is destroyed when
+ *        the parent Job is destroyed. However if the Job is still running it is
+ *        guaranteed that the Executor chain will not be destroyed until the execution
+ *        is finished.
+ * * Execution: The running execution of the task stored in Executor. Each call to Job::exec()
+ *        instantiates new Execution chain, which makes it possible for the Job to be
+ *        executed multiple times (even in parallel).
  * * Future: Representation of the result that is being calculated
  *
- * Lifetime:
- * * Before a job is executed is treated like a normal value on the stack.
- * * As soon as the job is executed, a heap allocated executor keeps the task running until complete. The associated future handle remains
- *   valid until the task is complete. To abort a job it has to be killed through the future handle.
- *   TODO: Can we tie the lifetime of the executor to the last available future handle?
  *
  * TODO: Composed progress reporting
  * TODO: Possibility to abort a job through future (perhaps optional?)
