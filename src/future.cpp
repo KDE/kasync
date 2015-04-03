@@ -20,20 +20,10 @@
 
 using namespace Async;
 
-FutureBase::FutureBase()
-{
-}
-
-FutureBase::FutureBase(const Async::FutureBase &other)
-{
-}
-
-FutureBase::~FutureBase()
-{
-}
-
 FutureBase::PrivateBase::PrivateBase(const Private::ExecutionPtr &execution)
-    : mExecution(execution)
+    : finished(false)
+    , errorCode(0)
+    , mExecution(execution)
 {
 }
 
@@ -53,14 +43,96 @@ void FutureBase::PrivateBase::releaseExecution()
 
 
 
+FutureBase::FutureBase()
+    : d(nullptr)
+{
+}
+
+FutureBase::FutureBase(FutureBase::PrivateBase *dd)
+    : d(dd)
+{
+}
+
+FutureBase::FutureBase(const Async::FutureBase &other)
+    : d(other.d)
+{
+}
+
+FutureBase::~FutureBase()
+{
+}
+
+void FutureBase::releaseExecution()
+{
+    d->releaseExecution();
+}
+
+void FutureBase::setFinished()
+{
+    if (isFinished()) {
+        return;
+    }
+    d->finished = true;
+    for (auto watcher : d->watchers) {
+        if (watcher) {
+            watcher->futureReadyCallback();
+        }
+    }
+}
+
+bool FutureBase::isFinished() const
+{
+    return d->finished;
+}
+
+void FutureBase::setError(int code, const QString &message)
+{
+    d->errorCode = code;
+    d->errorMessage = message;
+    setFinished();
+}
+
+int FutureBase::errorCode() const
+{
+    return d->errorCode;
+}
+
+QString FutureBase::errorMessage() const
+{
+    return d->errorMessage;
+}
+
+
+void FutureBase::addWatcher(FutureWatcherBase* watcher)
+{
+    d->watchers.append(QPointer<FutureWatcherBase>(watcher));
+}
+
+
+
+
+
 FutureWatcherBase::FutureWatcherBase(QObject *parent)
     : QObject(parent)
+    , d(new FutureWatcherBase::Private)
 {
 }
 
 FutureWatcherBase::~FutureWatcherBase()
 {
+    delete d;
 }
 
+void FutureWatcherBase::futureReadyCallback()
+{
+    Q_EMIT futureReady();
+}
 
-#include "future.moc"
+void FutureWatcherBase::setFutureImpl(const FutureBase &future)
+{
+    d->future = future;
+    d->future.addWatcher(this);
+    if (future.isFinished()) {
+        futureReadyCallback();
+    }
+}
