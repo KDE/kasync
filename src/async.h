@@ -101,7 +101,7 @@ struct Execution {
     void setFinished();
 
     template<typename T>
-    Async::Future<T>* result()
+    Async::Future<T>* result() const
     {
         return static_cast<Async::Future<T>*>(resultBase);
     }

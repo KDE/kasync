@@ -98,7 +98,7 @@ class FutureGeneric : public FutureBase
     friend class FutureWatcher<T>;
 
 public:
-    void waitForFinished()
+    void waitForFinished() const
     {
         if (isFinished()) {
             return;
