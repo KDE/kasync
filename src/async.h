@@ -585,7 +585,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
     // chainup
     execution->prevExecution = mPrev ? mPrev->exec(mPrev) : ExecutionPtr();
 
-    execution->resultBase = this->createFuture<Out>(execution);
+    execution->resultBase = ExecutorBase::createFuture<Out>(execution);
     auto fw = new Async::FutureWatcher<Out>();
     QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
                      [fw, execution, this]() {
@@ -678,7 +678,7 @@ void ThenExecutor<Out, In ...>::run(const ExecutionPtr &execution)
         assert(prevFuture->isFinished());
     }
 
-    this->mFunc(prevFuture ? prevFuture->value() : In() ..., *execution->result<Out>());
+    ThenExecutor<Out, In ...>::mFunc(prevFuture ? prevFuture->value() : In() ..., *execution->result<Out>());
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -703,7 +703,7 @@ void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
 
     for (auto arg : prevFuture->value()) {
         Async::Future<Out> future;
-        this->mFunc(arg, future);
+        EachExecutor<PrevOut, Out, In>::mFunc(arg, future);
         auto fw = new Async::FutureWatcher<Out>();
         mFutureWatchers.append(fw);
         QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
@@ -756,7 +756,7 @@ void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution, std::fals
             : nullptr;
     (void) prevFuture; // silence 'set but not used' warning
     Async::Future<Out> *future = execution->result<Out>();
-    future->setValue(this->mFunc(prevFuture ? prevFuture->value() : In() ...));
+    future->setValue(SyncThenExecutor<Out, In...>::mFunc(prevFuture ? prevFuture->value() : In() ...));
 }
 
 template<typename Out, typename ... In>
@@ -767,7 +767,7 @@ void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution, std::true
             ? execution->prevExecution->result<typename detail::prevOut<In ...>::type>()
             : nullptr;
     (void) prevFuture; // silence 'set but not used' warning
-    this->mFunc(prevFuture ? prevFuture->value() : In() ...);
+    SyncThenExecutor<Out, In ...>::mFunc(prevFuture ? prevFuture->value() : In() ...);
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -799,13 +799,13 @@ void SyncEachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
 template<typename PrevOut, typename Out, typename In>
 void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> *out, const typename PrevOut::value_type &arg, std::false_type)
 {
-    out->setValue(out->value() + this->mFunc(arg));
+    out->setValue(out->value() + SyncEachExecutor<PrevOut, Out, In>::mFunc(arg));
 }
 
 template<typename PrevOut, typename Out, typename In>
 void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> * /* unused */, const typename PrevOut::value_type &arg, std::true_type)
 {
-    this->mFunc(arg);
+    SyncEachExecutor<PrevOut, Out, In>::mFunc(arg);
 }
 
 template<typename Out, typename In>
