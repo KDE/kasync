@@ -54,7 +54,7 @@ void Private::Execution::releaseFuture()
 
 bool Private::Execution::errorWasHandled() const
 {
-    Execution * const exec = this;
+    Execution *exec = const_cast<Execution*>(this);
     while (exec) {
         if (exec->executor->hasErrorFunc()) {
             return true;
