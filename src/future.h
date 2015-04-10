@@ -107,7 +107,7 @@ public:
         QEventLoop eventLoop;
         QObject::connect(&watcher, &Async::FutureWatcher<T>::futureReady,
                          &eventLoop, &QEventLoop::quit);
-        watcher.setFuture(*static_cast<Async::Future<T>*>(this));
+        watcher.setFuture(*static_cast<const Async::Future<T>*>(this));
         eventLoop.exec();
     }
 
