@@ -5,6 +5,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(async_SRCS
     async.cpp
     future.cpp
+    debug.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${async_SRCS})

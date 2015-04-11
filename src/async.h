@@ -25,6 +25,7 @@
 #include <iterator>
 
 #include "future.h"
+#include "debug.h"
 #include "async_impl.h"
 
 #include <QVector>
@@ -115,7 +116,12 @@ struct Execution {
     bool isFinished;
 
     ExecutionPtr prevExecution;
+
+#ifndef QT_NO_DEBUG
+    Tracer *tracer;
+#endif
 };
+
 
 typedef QSharedPointer<Execution> ExecutionPtr;
 
@@ -128,6 +134,7 @@ class ExecutorBase
     friend class Async::Job;
 
     friend class Execution;
+    friend class Async::Tracer;
 
 public:
     virtual ~ExecutorBase();
@@ -143,6 +150,10 @@ protected:
     virtual bool handleError(const ExecutionPtr &execution) = 0;
 
     ExecutorBasePtr mPrev;
+
+#ifndef QT_NO_DEBUG
+    QString mExecutorName;
+#endif
 };
 
 template<typename PrevOut, typename Out, typename ... In>
@@ -581,6 +592,9 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
     // Passing 'self' to execution ensures that the Executor chain remains
     // valid until the entire execution is finished
     ExecutionPtr execution = ExecutionPtr::create(self);
+#ifndef QT_NO_DEBUG
+    execution->tracer = new Tracer(execution.data()); // owned by execution
+#endif
 
     // chainup
     execution->prevExecution = mPrev ? mPrev->exec(mPrev) : ExecutionPtr();
@@ -667,6 +681,7 @@ ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler
     : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(error, parent)
     , mFunc(then)
 {
+    STORE_EXECUTOR_NAME("ThenExecutor", Out, In ...);
 }
 
 template<typename Out, typename ... In>
@@ -686,6 +701,7 @@ EachExecutor<PrevOut, Out, In>::EachExecutor(EachTask<Out, In> each, ErrorHandle
     : Executor<PrevOut, Out, In>(error, parent)
     , mFunc(each)
 {
+    STORE_EXECUTOR_NAME("EachExecutor", PrevOut, Out, In);
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -727,6 +743,7 @@ template<typename Out, typename In>
 ReduceExecutor<Out, In>::ReduceExecutor(ReduceTask<Out, In> reduce, ErrorHandler errorFunc, const ExecutorBasePtr &parent)
     : ThenExecutor<Out, In>(reduce, errorFunc, parent)
 {
+    STORE_EXECUTOR_NAME("ReduceExecutor", Out, In);
 }
 
 template<typename Out, typename ... In>
@@ -734,6 +751,7 @@ SyncThenExecutor<Out, In ...>::SyncThenExecutor(SyncThenTask<Out, In ...> then, 
     : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(errorFunc, parent)
     , mFunc(then)
 {
+    STORE_EXECUTOR_NAME("SyncThenExecutor", Out, In ...);
 }
 
 template<typename Out, typename ... In>
@@ -775,6 +793,7 @@ SyncEachExecutor<PrevOut, Out, In>::SyncEachExecutor(SyncEachTask<Out, In> each,
     : Executor<PrevOut, Out, In>(errorFunc, parent)
     , mFunc(each)
 {
+    STORE_EXECUTOR_NAME("SyncEachExecutor", PrevOut, Out, In);
 }
 
 template<typename PrevOut, typename Out, typename In>
@@ -812,6 +831,7 @@ template<typename Out, typename In>
 SyncReduceExecutor<Out, In>::SyncReduceExecutor(SyncReduceTask<Out, In> reduce, ErrorHandler errorFunc, const ExecutorBasePtr &parent)
     : SyncThenExecutor<Out, In>(reduce, errorFunc, parent)
 {
+    STORE_EXECUTOR_NAME("SyncReduceExecutor", Out, In);
 }
 
 

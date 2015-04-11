@@ -21,7 +21,6 @@
 #include <QDebug>
 #include <QEventLoop>
 
-
 using namespace Async;
 
 Private::Execution::Execution(const Private::ExecutorBasePtr &executor)
@@ -45,6 +44,11 @@ void Private::Execution::setFinished()
 {
     isFinished = true;
     //executor.clear();
+#ifndef QT_NO_DEBUG
+    if (tracer) {
+        delete tracer;
+    }
+#endif
 }
 
 void Private::Execution::releaseFuture()
