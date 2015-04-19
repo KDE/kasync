@@ -718,14 +718,14 @@ void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
     }
 
     for (auto arg : prevFuture->value()) {
-        Async::Future<Out> future;
-        EachExecutor<PrevOut, Out, In>::mFunc(arg, future);
+        //We have to manually manage the lifetime of these temporary futures
+        Async::Future<Out> *future = new Async::Future<Out>();
+        EachExecutor<PrevOut, Out, In>::mFunc(arg, *future);
         auto fw = new Async::FutureWatcher<Out>();
         mFutureWatchers.append(fw);
         QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
-                         [out, fw, this]() {
-                             auto future = fw->future();
-                             assert(future.isFinished());
+                         [out, fw, this, future]() {
+                             assert(fw->future().isFinished());
                              const int index = mFutureWatchers.indexOf(fw);
                              assert(index > -1);
                              mFutureWatchers.removeAt(index);
@@ -734,8 +734,9 @@ void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
                                  out->setFinished();
                              }
                              delete fw;
+                             delete future;
                          });
-        fw->setFuture(future);
+        fw->setFuture(*future);
     }
 }
 
