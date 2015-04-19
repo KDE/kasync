@@ -55,7 +55,8 @@ private Q_SLOTS:
     void testAsyncEach();
     void testSyncEach();
     void testJoinedEach();
-    void testVoidEach();
+    void testVoidEachThen();
+    void testAsyncVoidEachThen();
 
     void testAsyncReduce();
     void testSyncReduce();
@@ -382,7 +383,7 @@ void AsyncTest::testJoinedEach()
     QCOMPARE(future.value(), expected);
 }
 
-void AsyncTest::testVoidEach()
+void AsyncTest::testVoidEachThen()
 {
     QList<int> check;
     auto job = Async::start<QList<int>>(
@@ -391,12 +392,37 @@ void AsyncTest::testVoidEach()
         }).each<void, int>(
         [&check](const int &v) {
             check << v;
-        });
+        }).then<void>([](){});
 
     auto future = job.exec();
 
     const QList<int> expected({ 1, 2, 3, 4 });
     QVERIFY(future.isFinished());
+    QCOMPARE(check, expected);
+}
+
+void AsyncTest::testAsyncVoidEachThen()
+{
+    bool completedJob = false;
+    QList<int> check;
+    auto job = Async::start<QList<int>>(
+        [](Async::Future<QList<int> > &future) {
+            new AsyncSimulator<QList<int>>(future, { 1, 2, 3, 4 });
+        }).each<void, int>(
+        [&check](const int &v, Async::Future<void> &future) {
+            check << v;
+            new AsyncSimulator<void>(future);
+        }).then<void>([&completedJob](Async::Future<void> &future) {
+            completedJob = true;
+            future.setFinished();
+        });
+
+    auto future = job.exec();
+    future.waitForFinished();
+
+    const QList<int> expected({ 1, 2, 3, 4 });
+    QVERIFY(future.isFinished());
+    QVERIFY(completedJob);
     QCOMPARE(check, expected);
 }
 

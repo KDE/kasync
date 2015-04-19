@@ -193,7 +193,7 @@ public:
     void run(const ExecutionPtr &execution);
 private:
     EachTask<Out, In> mFunc;
-    QVector<Async::FutureWatcher<PrevOut>*> mFutureWatchers;
+    QVector<Async::FutureWatcher<Out>*> mFutureWatchers;
 };
 
 template<typename Out, typename In>
@@ -729,7 +729,7 @@ void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
                              const int index = mFutureWatchers.indexOf(fw);
                              assert(index > -1);
                              mFutureWatchers.removeAt(index);
-                             out->setValue(out->value() + future.value());
+                             Async::detail::aggregateFutureValue<Out>(fw->future(), *out);
                              if (mFutureWatchers.isEmpty()) {
                                  out->setFinished();
                              }

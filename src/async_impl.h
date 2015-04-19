@@ -60,6 +60,20 @@ copyFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
     // noop
 }
 
+template<typename T>
+inline typename std::enable_if<!std::is_void<T>::value, void>::type
+aggregateFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+{
+    out.setValue(out.value() + in.value());
+}
+
+template<typename T>
+inline typename std::enable_if<std::is_void<T>::value, void>::type
+aggregateFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+{
+    // noop
+}
+
 } // namespace Detail
 
 } // namespace Async
