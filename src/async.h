@@ -276,6 +276,13 @@ Job<void> dowhile(Condition condition, ThenTask<void> func);
  */
 Job<void> dowhile(ThenTask<bool> body);
 
+/**
+ * Iterate over a container.
+ *
+ * Use in conjunction with .each
+ */
+template<typename Out>
+Job<Out> iterate(const Out &container);
 
 /**
  * A null job.
@@ -574,6 +581,15 @@ Job<Out> error(int errorCode, const QString &errorMessage)
     return Async::start<Out>(
         [errorCode, errorMessage](Async::Future<Out> &future) {
             future.setError(errorCode, errorMessage);
+        });
+}
+
+template<typename Out>
+Job<Out> iterate(const Out &container)
+{
+    return Async::start<Out>(
+        [container]() {
+            return container;
         });
 }
 
