@@ -514,7 +514,11 @@ private:
                                  // copy by value is const
                                  auto outFuture = future;
                                  Async::detail::copyFutureValue(watcher->future(), outFuture);
-                                 outFuture.setFinished();
+                                 if (watcher->future().errorCode()) {
+                                     outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
+                                 } else {
+                                     outFuture.setFinished();
+                                 }
                                  delete watcher;
                              });
             watcher->setFuture(job.exec(in ...));

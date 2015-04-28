@@ -68,6 +68,7 @@ private Q_SLOTS:
     void testErrorPropagation();
     void testErrorHandlerAsync();
     void testErrorPropagationAsync();
+    void testNestedErrorPropagation();
 
     void testChainingRunningJob();
     void testChainingFinishedJob();
@@ -688,6 +689,28 @@ void AsyncTest::testErrorPropagationAsync()
     QCOMPARE(error, 1);
 }
 
+void AsyncTest::testNestedErrorPropagation()
+{
+    int error = 0;
+    auto job = Async::start<void>([](){})
+        .then<void>(Async::error<void>(1, "error")) //Nested job that throws error
+        .then<void>([](Async::Future<void> &future) {
+            //We should never get here
+            Q_ASSERT(false);
+        },
+        [&error](int errorCode, const QString &errorMessage) {
+            error += errorCode;
+        }
+    );
+    auto future = job.exec();
+
+    future.waitForFinished();
+
+    QVERIFY(future.isFinished());
+    QCOMPARE(future.errorCode(), 1);
+    QCOMPARE(future.errorMessage(), QString::fromLatin1("error"));
+    QCOMPARE(error, 1);
+}
 
 
 
