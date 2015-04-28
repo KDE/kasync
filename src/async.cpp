@@ -20,6 +20,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QEventLoop>
+#include <QTimer>
 
 using namespace Async;
 
@@ -130,6 +131,18 @@ Job<void> Async::dowhile(ThenTask<bool> body)
         [&future]() { //while complete
             future.setFinished();
         });
+    });
+}
+
+Job<void> Async::wait(int delay)
+{
+    auto timer = QSharedPointer<QTimer>::create();
+    return Async::start<void>([timer, delay](Async::Future<void> &future) {
+        timer->setSingleShot(true);
+        QObject::connect(timer.data(), &QTimer::timeout, [&future]() {
+            future.setFinished();
+        });
+        timer->start(delay);
     });
 }
 

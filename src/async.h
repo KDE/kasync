@@ -285,6 +285,11 @@ template<typename Out>
 Job<Out> iterate(const Out &container);
 
 /**
+ * Async delay.
+ */
+Job<void> wait(int delay);
+
+/**
  * A null job.
  *
  * An async noop.
