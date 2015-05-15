@@ -1,11 +1,13 @@
-include_directories(../src ${CMAKE_CURRENT_BINARY_DIR})
+include(ECMAddTests)
 
-add_executable(asynctest asynctest.cpp)
-qt5_use_modules(asynctest Test)
-target_link_libraries(asynctest akonadi2async Qt5::Core Qt5::Test)
+ecm_add_test(asynctest.cpp
+             TEST_NAME asynctest
+             LINK_LIBRARIES KF5Async Qt5::Test
+)
 
 if (WITH_KJOB)
-    add_executable(kjobtest kjobtest.cpp testkjob.cpp)
-    qt5_use_modules(kjobtest Test)
-    target_link_libraries(kjobtest akonadi2async Qt5::Core Qt5::Test KF5::CoreAddons)
-endif ()
+    ecm_add_test(kjobtest.cpp testkjob.cpp
+                 TEST_NAME kjobtest
+                 LINK_LIBRARIES KF5Async Qt5::Test KF5::CoreAddons
+    )
+endif()
