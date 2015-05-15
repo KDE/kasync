@@ -18,6 +18,8 @@
 #ifndef FUTURE_H
 #define FUTURE_H
 
+#include "kasync_export.h"
+
 class QEventLoop;
 
 #include <type_traits>
@@ -27,7 +29,7 @@ class QEventLoop;
 #include <QVector>
 #include <QEventLoop>
 
-namespace Async {
+namespace KAsync {
 
 class FutureWatcherBase;
 template<typename T>
@@ -40,9 +42,9 @@ class ExecutorBase;
 typedef QSharedPointer<Execution> ExecutionPtr;
 } // namespace Private
 
-class FutureBase
+class KASYNC_EXPORT FutureBase
 {
-    friend class Async::Private::Execution;
+    friend class KAsync::Private::Execution;
     friend class FutureWatcherBase;
 
 public:
@@ -61,7 +63,7 @@ protected:
     class PrivateBase : public QSharedData
     {
     public:
-        PrivateBase(const Async::Private::ExecutionPtr &execution);
+        PrivateBase(const KAsync::Private::ExecutionPtr &execution);
         virtual ~PrivateBase();
 
         void releaseExecution();
@@ -72,14 +74,14 @@ protected:
 
         QVector<QPointer<FutureWatcherBase>> watchers;
     private:
-        QWeakPointer<Async::Private::Execution> mExecution;
+        QWeakPointer<KAsync::Private::Execution> mExecution;
     };
 
     FutureBase();
     FutureBase(FutureBase::PrivateBase *dd);
     FutureBase(const FutureBase &other);
 
-    void addWatcher(Async::FutureWatcherBase *watcher);
+    void addWatcher(KAsync::FutureWatcherBase *watcher);
     void releaseExecution();
 
 protected:
@@ -105,14 +107,14 @@ public:
         }
         FutureWatcher<T> watcher;
         QEventLoop eventLoop;
-        QObject::connect(&watcher, &Async::FutureWatcher<T>::futureReady,
+        QObject::connect(&watcher, &KAsync::FutureWatcher<T>::futureReady,
                          &eventLoop, &QEventLoop::quit);
-        watcher.setFuture(*static_cast<const Async::Future<T>*>(this));
+        watcher.setFuture(*static_cast<const KAsync::Future<T>*>(this));
         eventLoop.exec();
     }
 
 protected:
-    FutureGeneric(const Async::Private::ExecutionPtr &execution)
+    FutureGeneric(const KAsync::Private::ExecutionPtr &execution)
         : FutureBase(new Private(execution))
     {}
 
@@ -124,7 +126,7 @@ protected:
     class Private : public FutureBase::PrivateBase
     {
     public:
-        Private(const Async::Private::ExecutionPtr &execution)
+        Private(const KAsync::Private::ExecutionPtr &execution)
             : FutureBase::PrivateBase(execution)
         {}
 
@@ -137,14 +139,14 @@ protected:
 template<typename T>
 class Future : public FutureGeneric<T>
 {
-    friend class Async::Private::ExecutorBase;
+    friend class KAsync::Private::ExecutorBase;
 
     template<typename T_>
-    friend class Async::FutureWatcher;
+    friend class KAsync::FutureWatcher;
 
 public:
     Future()
-        : FutureGeneric<T>(Async::Private::ExecutionPtr())
+        : FutureGeneric<T>(KAsync::Private::ExecutionPtr())
     {}
 
     Future(const Future<T> &other)
@@ -162,7 +164,7 @@ public:
     }
 
 protected:
-    Future(const Async::Private::ExecutionPtr &execution)
+    Future(const KAsync::Private::ExecutionPtr &execution)
         : FutureGeneric<T>(execution)
     {}
 
@@ -171,11 +173,11 @@ protected:
 template<>
 class Future<void> : public FutureGeneric<void>
 {
-    friend class Async::Private::ExecutorBase;
+    friend class KAsync::Private::ExecutorBase;
 
 public:
     Future()
-        : FutureGeneric<void>(Async::Private::ExecutionPtr())
+        : FutureGeneric<void>(KAsync::Private::ExecutionPtr())
     {}
 
     Future(const Future<void> &other)
@@ -183,7 +185,7 @@ public:
     {}
 
 protected:
-    Future(const Async::Private::ExecutionPtr &execution)
+    Future(const KAsync::Private::ExecutionPtr &execution)
         : FutureGeneric<void>(execution)
     {}
 };
@@ -192,7 +194,7 @@ protected:
 
 
 
-class FutureWatcherBase : public QObject
+class KASYNC_EXPORT FutureWatcherBase : public QObject
 {
     Q_OBJECT
 
@@ -209,12 +211,12 @@ protected:
     void futureReadyCallback();
     void futureProgressCallback(qreal progress);
 
-    void setFutureImpl(const Async::FutureBase &future);
+    void setFutureImpl(const KAsync::FutureBase &future);
 
 protected:
     class Private {
     public:
-        Async::FutureBase future;
+        KAsync::FutureBase future;
     };
 
     Private * const d;
@@ -226,7 +228,7 @@ private:
 template<typename T>
 class FutureWatcher : public FutureWatcherBase
 {
-    friend class Async::FutureGeneric<T>;
+    friend class KAsync::FutureGeneric<T>;
 
 public:
     FutureWatcher(QObject *parent = nullptr)
@@ -236,14 +238,14 @@ public:
     ~FutureWatcher()
     {}
 
-    void setFuture(const Async::Future<T> &future)
+    void setFuture(const KAsync::Future<T> &future)
     {
-        setFutureImpl(*static_cast<const Async::FutureBase*>(&future));
+        setFutureImpl(*static_cast<const KAsync::FutureBase*>(&future));
     }
 
-    Async::Future<T> future() const
+    KAsync::Future<T> future() const
     {
-        return *static_cast<Async::Future<T>*>(&d->future);
+        return *static_cast<KAsync::Future<T>*>(&d->future);
     }
 
 private:

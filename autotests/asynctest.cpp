@@ -82,7 +82,7 @@ private:
     template<typename T>
     class AsyncSimulator {
     public:
-        AsyncSimulator(Async::Future<T> &future, const T &result)
+        AsyncSimulator(KAsync::Future<T> &future, const T &result)
             : mFuture(future)
             , mResult(result)
         {
@@ -99,7 +99,7 @@ private:
             mTimer.start(200);
         }
 
-        AsyncSimulator(Async::Future<T> &future, std::function<void(Async::Future<T>&)> callback)
+        AsyncSimulator(KAsync::Future<T> &future, std::function<void(KAsync::Future<T>&)> callback)
             : mFuture(future)
             , mCallback(callback)
         {
@@ -116,8 +116,8 @@ private:
         }
 
     private:
-        Async::Future<T> mFuture;
-        std::function<void(Async::Future<T>&)> mCallback;
+        KAsync::Future<T> mFuture;
+        std::function<void(KAsync::Future<T>&)> mCallback;
         T mResult;
         QTimer mTimer;
     };
@@ -127,7 +127,7 @@ private:
 template<>
 class AsyncTest::AsyncSimulator<void> {
 public:
-    AsyncSimulator(Async::Future<void> &future)
+    AsyncSimulator(KAsync::Future<void> &future)
         : mFuture(future)
     {
         QObject::connect(&mTimer, &QTimer::timeout,
@@ -143,7 +143,7 @@ public:
     }
 
 private:
-    Async::Future<void> mFuture;
+    KAsync::Future<void> mFuture;
     QTimer mTimer;
 };
 
@@ -151,24 +151,24 @@ private:
 
 void AsyncTest::testSyncPromises()
 {
-    auto baseJob = Async::start<int>(
-        [](Async::Future<int> &f) {
+    auto baseJob = KAsync::start<int>(
+        [](KAsync::Future<int> &f) {
             f.setValue(42);
             f.setFinished();
         })
     .then<QString, int>(
-        [](int v, Async::Future<QString> &f) {
-            f.setValue("Result is " + QString::number(v));
+        [](int v, KAsync::Future<QString> &f) {
+            f.setValue(QLatin1String("Result is ") + QString::number(v));
             f.setFinished();
         });
 
     auto job = baseJob.then<QString, QString>(
-        [](const QString &v, Async::Future<QString> &f) {
+        [](const QString &v, KAsync::Future<QString> &f) {
             f.setValue(v.toUpper());
             f.setFinished();
         });
 
-    Async::Future<QString> future = job.exec();
+    KAsync::Future<QString> future = job.exec();
 
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), QString::fromLatin1("RESULT IS 42"));
@@ -176,12 +176,12 @@ void AsyncTest::testSyncPromises()
 
 void AsyncTest::testAsyncPromises()
 {
-    auto job = Async::start<int>(
-        [](Async::Future<int> &future) {
+    auto job = KAsync::start<int>(
+        [](KAsync::Future<int> &future) {
             new AsyncSimulator<int>(future, 42);
         });
 
-    Async::Future<int> future = job.exec();
+    KAsync::Future<int> future = job.exec();
 
     future.waitForFinished();
     QCOMPARE(future.value(), 42);
@@ -191,11 +191,11 @@ void AsyncTest::testAsyncPromises2()
 {
     bool done = false;
 
-    auto job = Async::start<int>(
-        [](Async::Future<int> &future) {
+    auto job = KAsync::start<int>(
+        [](KAsync::Future<int> &future) {
             new AsyncSimulator<int>(future, 42);
         }
-    ).then<int, int>([&done](int result, Async::Future<int> &future) {
+    ).then<int, int>([&done](int result, KAsync::Future<int> &future) {
         done = true;
         future.setValue(result);
         future.setFinished();
@@ -210,17 +210,17 @@ void AsyncTest::testNestedAsync()
 {
     bool done = false;
 
-    auto job = Async::start<int>(
-        [](Async::Future<int> &future) {
-            auto innerJob = Async::start<int>([](Async::Future<int> &innerFuture) {
+    auto job = KAsync::start<int>(
+        [](KAsync::Future<int> &future) {
+            auto innerJob = KAsync::start<int>([](KAsync::Future<int> &innerFuture) {
                 new AsyncSimulator<int>(innerFuture, 42);
-            }).then<void>([&future](Async::Future<void> &innerThenFuture) {
+            }).then<void>([&future](KAsync::Future<void> &innerThenFuture) {
                 future.setFinished();
                 innerThenFuture.setFinished();
             });
             innerJob.exec().waitForFinished();
         }
-    ).then<int, int>([&done](int result, Async::Future<int> &future) {
+    ).then<int, int>([&done](int result, KAsync::Future<int> &future) {
         done = true;
         future.setValue(result);
         future.setFinished();
@@ -232,8 +232,8 @@ void AsyncTest::testNestedAsync()
 
 void AsyncTest::testStartValue()
 {
-    auto job = Async::start<int, int>(
-        [](int in, Async::Future<int> &future) {
+    auto job = KAsync::start<int, int>(
+        [](int in, KAsync::Future<int> &future) {
             future.setValue(in);
             future.setFinished();
         });
@@ -249,8 +249,8 @@ void AsyncTest::testStartValue()
 
 void AsyncTest::testAsyncThen()
 {
-    auto job = Async::start<int>(
-        [](Async::Future<int> &future) {
+    auto job = KAsync::start<int>(
+        [](KAsync::Future<int> &future) {
             new AsyncSimulator<int>(future, 42);
         });
 
@@ -264,7 +264,7 @@ void AsyncTest::testAsyncThen()
 
 void AsyncTest::testSyncThen()
 {
-    auto job = Async::start<int>(
+    auto job = KAsync::start<int>(
         []() -> int {
             return 42;
         })
@@ -280,13 +280,13 @@ void AsyncTest::testSyncThen()
 
 void AsyncTest::testJoinedThen()
 {
-    auto job1 = Async::start<int, int>(
-        [](int in, Async::Future<int> &future) {
+    auto job1 = KAsync::start<int, int>(
+        [](int in, KAsync::Future<int> &future) {
             new AsyncSimulator<int>(future, in * 2);
         });
 
-    auto job2 = Async::start<int>(
-        [](Async::Future<int> &future) {
+    auto job2 = KAsync::start<int>(
+        [](KAsync::Future<int> &future) {
             new AsyncSimulator<int>(future, 42);
         })
     .then<int>(job1);
@@ -302,13 +302,13 @@ void AsyncTest::testVoidThen()
 {
     int check = 0;
 
-    auto job = Async::start<void>(
-        [&check](Async::Future<void> &future) {
+    auto job = KAsync::start<void>(
+        [&check](KAsync::Future<void> &future) {
             new AsyncSimulator<void>(future);
             ++check;
         })
     .then<void>(
-        [&check](Async::Future<void> &future) {
+        [&check](KAsync::Future<void> &future) {
             new AsyncSimulator<void>(future);
             ++check;
         })
@@ -328,12 +328,12 @@ void AsyncTest::testVoidThen()
 
 void AsyncTest::testAsyncEach()
 {
-    auto job = Async::start<QList<int>>(
-        [](Async::Future<QList<int>> &future) {
+    auto job = KAsync::start<QList<int>>(
+        [](KAsync::Future<QList<int>> &future) {
             new AsyncSimulator<QList<int>>(future, { 1, 2, 3, 4 });
         })
     .each<QList<int>, int>(
-        [](const int &v, Async::Future<QList<int>> &future) {
+        [](const int &v, KAsync::Future<QList<int>> &future) {
             new AsyncSimulator<QList<int>>(future, { v + 1 });
         });
 
@@ -347,7 +347,7 @@ void AsyncTest::testAsyncEach()
 
 void AsyncTest::testSyncEach()
 {
-    auto job = Async::start<QList<int>>(
+    auto job = KAsync::start<QList<int>>(
         []() -> QList<int> {
             return { 1, 2, 3, 4 };
         })
@@ -356,7 +356,7 @@ void AsyncTest::testSyncEach()
             return { v + 1 };
         });
 
-    Async::Future<QList<int>> future = job.exec();
+    KAsync::Future<QList<int>> future = job.exec();
 
     const QList<int> expected({ 2, 3, 4, 5 });
     QVERIFY(future.isFinished());
@@ -365,12 +365,12 @@ void AsyncTest::testSyncEach()
 
 void AsyncTest::testJoinedEach()
 {
-    auto job1 = Async::start<QList<int>, int>(
-        [](int v, Async::Future<QList<int>> &future) {
+    auto job1 = KAsync::start<QList<int>, int>(
+        [](int v, KAsync::Future<QList<int>> &future) {
             new AsyncSimulator<QList<int>>(future, { v * 2 });
         });
 
-    auto job = Async::start<QList<int>>(
+    auto job = KAsync::start<QList<int>>(
         []() -> QList<int> {
             return { 1, 2, 3, 4 };
         })
@@ -387,7 +387,7 @@ void AsyncTest::testJoinedEach()
 void AsyncTest::testVoidEachThen()
 {
     QList<int> check;
-    auto job = Async::start<QList<int>>(
+    auto job = KAsync::start<QList<int>>(
         []() -> QList<int> {
             return { 1, 2, 3, 4 };
         }).each<void, int>(
@@ -406,14 +406,14 @@ void AsyncTest::testAsyncVoidEachThen()
 {
     bool completedJob = false;
     QList<int> check;
-    auto job = Async::start<QList<int>>(
-        [](Async::Future<QList<int> > &future) {
+    auto job = KAsync::start<QList<int>>(
+        [](KAsync::Future<QList<int> > &future) {
             new AsyncSimulator<QList<int>>(future, { 1, 2, 3, 4 });
         }).each<void, int>(
-        [&check](const int &v, Async::Future<void> &future) {
+        [&check](const int &v, KAsync::Future<void> &future) {
             check << v;
             new AsyncSimulator<void>(future);
-        }).then<void>([&completedJob](Async::Future<void> &future) {
+        }).then<void>([&completedJob](KAsync::Future<void> &future) {
             completedJob = true;
             future.setFinished();
         });
@@ -433,14 +433,14 @@ void AsyncTest::testAsyncVoidEachThen()
 
 void AsyncTest::testAsyncReduce()
 {
-    auto job = Async::start<QList<int>>(
-        [](Async::Future<QList<int>> &future) {
+    auto job = KAsync::start<QList<int>>(
+        [](KAsync::Future<QList<int>> &future) {
             new AsyncSimulator<QList<int>>(future, { 1, 2, 3, 4 });
         })
     .reduce<int, QList<int>>(
-        [](const QList<int> &list, Async::Future<int> &future) {
+        [](const QList<int> &list, KAsync::Future<int> &future) {
             new AsyncSimulator<int>(future,
-                [list](Async::Future<int> &future) {
+                [list](KAsync::Future<int> &future) {
                     int sum = 0;
                     for (int i : list) sum += i;
                     future.setValue(sum);
@@ -449,7 +449,7 @@ void AsyncTest::testAsyncReduce()
             );
         });
 
-    Async::Future<int> future = job.exec();
+    KAsync::Future<int> future = job.exec();
     future.waitForFinished();
 
     QVERIFY(future.isFinished());
@@ -458,7 +458,7 @@ void AsyncTest::testAsyncReduce()
 
 void AsyncTest::testSyncReduce()
 {
-    auto job = Async::start<QList<int>>(
+    auto job = KAsync::start<QList<int>>(
         []() -> QList<int> {
             return { 1, 2, 3, 4 };
         })
@@ -469,7 +469,7 @@ void AsyncTest::testSyncReduce()
             return sum;
         });
 
-    Async::Future<int> future = job.exec();
+    KAsync::Future<int> future = job.exec();
 
     QVERIFY(future.isFinished());
     QCOMPARE(future.value(), 10);
@@ -478,14 +478,14 @@ void AsyncTest::testSyncReduce()
 
 void AsyncTest::testJoinedReduce()
 {
-    auto job1 = Async::start<int, QList<int>>(
-        [](const QList<int> &list, Async::Future<int> &future) {
+    auto job1 = KAsync::start<int, QList<int>>(
+        [](const QList<int> &list, KAsync::Future<int> &future) {
             int sum = 0;
             for (int i : list) sum += i;
             new AsyncSimulator<int>(future, sum);
         });
 
-    auto job = Async::start<QList<int>>(
+    auto job = KAsync::start<QList<int>>(
         []() -> QList<int> {
             return { 1, 2, 3, 4 };
         })
@@ -502,7 +502,7 @@ void AsyncTest::testVoidReduce()
 {
 // This must not compile (reduce with void result makes no sense)
 #ifdef TEST_BUILD_FAIL
-    auto job = Async::start<QList<int>>(
+    auto job = KAsync::start<QList<int>>(
         []() -> QList<int> {
             return { 1, 2, 3, 4 };
         })
@@ -522,8 +522,8 @@ void AsyncTest::testProgressReporting()
     static int progress;
     progress = 0;
 
-    auto job = Async::start<void>(
-        [](Async::Future<void> &f) {
+    auto job = KAsync::start<void>(
+        [](KAsync::Future<void> &f) {
             QTimer *timer = new QTimer();
             connect(timer, &QTimer::timeout,
                     [&f, timer]() {
@@ -538,8 +538,8 @@ void AsyncTest::testProgressReporting()
         });
 
     int progressCheck = 0;
-    Async::FutureWatcher<void> watcher;
-    connect(&watcher, &Async::FutureWatcher<void>::futureProgress,
+    KAsync::FutureWatcher<void> watcher;
+    connect(&watcher, &KAsync::FutureWatcher<void>::futureProgress,
             [&progressCheck](qreal progress) {
                 progressCheck++;
                 // FIXME: Don't use Q_ASSERT in unit tests
@@ -556,9 +556,9 @@ void AsyncTest::testErrorHandler()
 {
 
     {
-        auto job = Async::start<int>(
-            [](Async::Future<int> &f) {
-                f.setError(1, "error");
+        auto job = KAsync::start<int>(
+            [](KAsync::Future<int> &f) {
+                f.setError(1, QLatin1String("error"));
             });
 
         auto future = job.exec();
@@ -569,9 +569,9 @@ void AsyncTest::testErrorHandler()
 
     {
         int error = 0;
-        auto job = Async::start<int>(
-            [](Async::Future<int> &f) {
-                f.setError(1, "error");
+        auto job = KAsync::start<int>(
+            [](KAsync::Future<int> &f) {
+                f.setError(1, QLatin1String("error"));
             },
             [&error](int errorCode, const QString &errorMessage) {
                 error += errorCode;
@@ -590,12 +590,12 @@ void AsyncTest::testErrorPropagation()
 {
     int error = 0;
     bool called = false;
-    auto job = Async::start<int>(
-        [](Async::Future<int> &f) {
-            f.setError(1, "error");
+    auto job = KAsync::start<int>(
+        [](KAsync::Future<int> &f) {
+            f.setError(1, QLatin1String("error"));
         })
     .then<int, int>(
-        [&called](int v, Async::Future<int> &f) {
+        [&called](int v, KAsync::Future<int> &f) {
             called = true;
             f.setFinished();
         },
@@ -614,11 +614,11 @@ void AsyncTest::testErrorPropagation()
 void AsyncTest::testErrorHandlerAsync()
 {
     {
-        auto job = Async::start<int>(
-            [](Async::Future<int> &f) {
+        auto job = KAsync::start<int>(
+            [](KAsync::Future<int> &f) {
                 new AsyncSimulator<int>(f,
-                    [](Async::Future<int> &f) {
-                        f.setError(1, "error");
+                    [](KAsync::Future<int> &f) {
+                        f.setError(1, QLatin1String("error"));
                     }
                 );
             }
@@ -634,11 +634,11 @@ void AsyncTest::testErrorHandlerAsync()
 
     {
         int error = 0;
-        auto job = Async::start<int>(
-            [](Async::Future<int> &f) {
+        auto job = KAsync::start<int>(
+            [](KAsync::Future<int> &f) {
                 new AsyncSimulator<int>(f,
-                    [](Async::Future<int> &f) {
-                        f.setError(1, "error");
+                    [](KAsync::Future<int> &f) {
+                        f.setError(1, QLatin1String("error"));
                     }
                 );
             },
@@ -661,16 +661,16 @@ void AsyncTest::testErrorPropagationAsync()
 {
     int error = 0;
     bool called = false;
-    auto job = Async::start<int>(
-        [](Async::Future<int> &f) {
+    auto job = KAsync::start<int>(
+        [](KAsync::Future<int> &f) {
             new AsyncSimulator<int>(f,
-                [](Async::Future<int> &f) {
-                    f.setError(1, "error");
+                [](KAsync::Future<int> &f) {
+                    f.setError(1, QLatin1String("error"));
                 }
             );
         })
     .then<int, int>(
-        [&called](int v, Async::Future<int> &f) {
+        [&called](int v, KAsync::Future<int> &f) {
             called = true;
             f.setFinished();
         },
@@ -692,9 +692,9 @@ void AsyncTest::testErrorPropagationAsync()
 void AsyncTest::testNestedErrorPropagation()
 {
     int error = 0;
-    auto job = Async::start<void>([](){})
-        .then<void>(Async::error<void>(1, "error")) //Nested job that throws error
-        .then<void>([](Async::Future<void> &future) {
+    auto job = KAsync::start<void>([](){})
+        .then<void>(KAsync::error<void>(1, QLatin1String("error"))) //Nested job that throws error
+        .then<void>([](KAsync::Future<void> &future) {
             //We should never get here
             Q_ASSERT(false);
         },
@@ -719,8 +719,8 @@ void AsyncTest::testChainingRunningJob()
 {
     int check = 0;
 
-    auto job = Async::start<int>(
-        [&check](Async::Future<int> &future) {
+    auto job = KAsync::start<int>(
+        [&check](KAsync::Future<int> &future) {
             QTimer *timer = new QTimer();
             QObject::connect(timer, &QTimer::timeout,
                              [&future, &check]() {
@@ -763,7 +763,7 @@ void AsyncTest::testChainingFinishedJob()
 {
     int check = 0;
 
-    auto job = Async::start<int>(
+    auto job = KAsync::start<int>(
         [&check]() -> int {
             ++check;
             return 42;
@@ -799,7 +799,7 @@ void AsyncTest::testLifetimeWithoutHandle()
 {
     bool done = false;
     {
-        auto job = Async::start<void>([&done](Async::Future<void> &future) {
+        auto job = KAsync::start<void>([&done](KAsync::Future<void> &future) {
             QTimer *timer = new QTimer();
             QObject::connect(timer, &QTimer::timeout,
                              [&future, &done]() {
@@ -823,9 +823,9 @@ void AsyncTest::testLifetimeWithoutHandle()
  */
 void AsyncTest::testLifetimeWithHandle()
 {
-    Async::Future<void> future;
+    KAsync::Future<void> future;
     {
-        auto job = Async::start<void>([](Async::Future<void> &future) {
+        auto job = KAsync::start<void>([](KAsync::Future<void> &future) {
             QTimer *timer = new QTimer();
             QObject::connect(timer, &QTimer::timeout,
                              [&future]() {
@@ -844,7 +844,7 @@ void AsyncTest::testLifetimeWithHandle()
 
 void AsyncTest::benchmarkSyncThenExecutor()
 {
-    auto job = Async::start<int>(
+    auto job = KAsync::start<int>(
         []() -> int {
             return 0;
         });

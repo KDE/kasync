@@ -43,7 +43,7 @@ private Q_SLOTS:
 
 void KJobTest::testSingleKJob()
 {
-    auto job = Async::start<int, TestKJob, &TestKJob::result, int>();
+    auto job = KAsync::start<int, TestKJob, &TestKJob::result, int>();
 
     auto future = job.exec(42);
     future.waitForFinished();
@@ -54,7 +54,7 @@ void KJobTest::testSingleKJob()
 
 void KJobTest::testKJobChain()
 {
-    auto job = Async::start<int, TestKJob, &TestKJob::result, int>()
+    auto job = KAsync::start<int, TestKJob, &TestKJob::result, int>()
                 .then<int, TestKJob, &TestKJob::result, int>();
 
     auto future = job.exec(42);

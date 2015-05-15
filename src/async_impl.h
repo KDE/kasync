@@ -1,5 +1,5 @@
 /*
- * Copyright 2014  Daniel Vrátil <dvratil@redhat.com>
+ * Copyright 2014 - 2015 Daniel Vrátil <dvratil@redhat.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public License as
@@ -15,13 +15,13 @@
  * along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ASYNC_IMPL_H
-#define ASYNC_IMPL_H
+#ifndef KASYNC_IMPL_H
+#define KASYNC_IMPL_H
 
 #include "async.h"
 #include <type_traits>
 
-namespace Async {
+namespace KAsync {
 
 namespace detail {
 
@@ -48,34 +48,34 @@ struct prevOut {
 
 template<typename T>
 inline typename std::enable_if<!std::is_void<T>::value, void>::type
-copyFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     out.setValue(in.value());
 }
 
 template<typename T>
 inline typename std::enable_if<std::is_void<T>::value, void>::type
-copyFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     // noop
 }
 
 template<typename T>
 inline typename std::enable_if<!std::is_void<T>::value, void>::type
-aggregateFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+aggregateFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     out.setValue(out.value() + in.value());
 }
 
 template<typename T>
 inline typename std::enable_if<std::is_void<T>::value, void>::type
-aggregateFutureValue(const Async::Future<T> &in, Async::Future<T> &out)
+aggregateFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     // noop
 }
 
 } // namespace Detail
 
-} // namespace Async
+} // namespace KAsync
 
-#endif // ASYNC_IMPL_H
+#endif // KASYNC_IMPL_H

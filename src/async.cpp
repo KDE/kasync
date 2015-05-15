@@ -22,7 +22,7 @@
 #include <QEventLoop>
 #include <QTimer>
 
-using namespace Async;
+using namespace KAsync;
 
 Private::Execution::Execution(const Private::ExecutorBasePtr &executor)
     : executor(executor)
@@ -104,11 +104,11 @@ static void asyncWhile(const std::function<void(std::function<void(bool)>)> &bod
     });
 }
 
-Job<void> Async::dowhile(Condition condition, ThenTask<void> body)
+Job<void> KAsync::dowhile(Condition condition, ThenTask<void> body)
 {
-    return Async::start<void>([body, condition](Async::Future<void> &future) {
+    return KAsync::start<void>([body, condition](KAsync::Future<void> &future) {
         asyncWhile([condition, body](std::function<void(bool)> whileCallback) {
-            Async::start<void>(body).then<void>([whileCallback, condition]() {
+            KAsync::start<void>(body).then<void>([whileCallback, condition]() {
                 whileCallback(!condition());
             }).exec();
         },
@@ -118,11 +118,11 @@ Job<void> Async::dowhile(Condition condition, ThenTask<void> body)
     });
 }
 
-Job<void> Async::dowhile(ThenTask<bool> body)
+Job<void> KAsync::dowhile(ThenTask<bool> body)
 {
-    return Async::start<void>([body](Async::Future<void> &future) {
+    return KAsync::start<void>([body](KAsync::Future<void> &future) {
         asyncWhile([body](std::function<void(bool)> whileCallback) {
-            Async::start<bool>(body).then<bool, bool>([whileCallback](bool result) {
+            KAsync::start<bool>(body).then<bool, bool>([whileCallback](bool result) {
                 whileCallback(!result);
                 //FIXME this return value is only required because .then<bool, void> doesn't work
                 return true;
@@ -134,10 +134,10 @@ Job<void> Async::dowhile(ThenTask<bool> body)
     });
 }
 
-Job<void> Async::wait(int delay)
+Job<void> KAsync::wait(int delay)
 {
     auto timer = QSharedPointer<QTimer>::create();
-    return Async::start<void>([timer, delay](Async::Future<void> &future) {
+    return KAsync::start<void>([timer, delay](KAsync::Future<void> &future) {
         timer->setSingleShot(true);
         QObject::connect(timer.data(), &QTimer::timeout, [&future]() {
             future.setFinished();

@@ -18,7 +18,7 @@
 #include "future.h"
 #include "async.h"
 
-using namespace Async;
+using namespace KAsync;
 
 FutureBase::PrivateBase::PrivateBase(const Private::ExecutionPtr &execution)
     : finished(false)
@@ -53,7 +53,7 @@ FutureBase::FutureBase(FutureBase::PrivateBase *dd)
 {
 }
 
-FutureBase::FutureBase(const Async::FutureBase &other)
+FutureBase::FutureBase(const KAsync::FutureBase &other)
     : d(other.d)
 {
 }

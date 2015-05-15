@@ -25,7 +25,7 @@
 #include <memory>
 #endif
 
-namespace Async
+namespace KAsync
 {
 
 Q_LOGGING_CATEGORY(Debug, "org.kde.async", QtWarningMsg);
@@ -37,15 +37,15 @@ QString demangleName(const char *name)
     int status = 1; // uses -3 to 0 error codes
     std::unique_ptr<char, void(*)(void*)> demangled(abi::__cxa_demangle(name, 0, 0, &status), std::free);
     if (status == 0) {
-        return QString(demangled.get());
+        return QString::fromLatin1(demangled.get());
     }
 #endif
-    return QString(name);
+    return QString::fromLatin1(name);
 }
 
 }
 
-using namespace Async;
+using namespace KAsync;
 
 int Tracer::lastId = 0;
 
@@ -53,12 +53,12 @@ Tracer::Tracer(Private::Execution *execution)
     : mId(lastId++)
     , mExecution(execution)
 {
-    msg(Async::Tracer::Start);
+    msg(KAsync::Tracer::Start);
 }
 
 Tracer::~Tracer()
 {
-    msg(Async::Tracer::End);
+    msg(KAsync::Tracer::End);
     // FIXME: Does this work on parallel executions?
     --lastId;
     --mId;
@@ -68,8 +68,8 @@ void Tracer::msg(Tracer::MsgType msgType)
 {
 #ifndef QT_NO_DEBUG
     qCDebug(Trace).nospace() << (QString().fill(QLatin1Char(' '), mId * 2) % 
-                                 (msgType == Async::Tracer::Start ? " START " : " END   ") %
-                                 QString::number(mId) % " " %
+                                 (msgType == KAsync::Tracer::Start ? QStringLiteral(" START ") : QStringLiteral(" END   ")) %
+                                 QString::number(mId) % QStringLiteral(" ") %
                                  mExecution->executor->mExecutorName);
 #endif
 }

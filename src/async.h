@@ -1,5 +1,5 @@
 /*
- * Copyright 2014  Daniel Vrátil <dvratil@redhat.com>
+ * Copyright 2014 - 2015 Daniel Vrátil <dvratil@redhat.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public License as
@@ -15,8 +15,10 @@
  * along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ASYNC_H
-#define ASYNC_H
+#ifndef KASYNC_H
+#define KASYNC_H
+
+#include "kasync_export.h"
 
 #include <functional>
 #include <list>
@@ -64,7 +66,7 @@
  * TODO: Possibility to abort a job through future (perhaps optional?)
  * TODO: Support for timeout, specified during exec call, after which the error handler gets called with a defined errorCode.
  */
-namespace Async {
+namespace KAsync {
 
 template<typename PrevOut, typename Out, typename ... In>
 class Executor;
@@ -75,15 +77,15 @@ template<typename Out, typename ... In>
 class Job;
 
 template<typename Out, typename ... In>
-using ThenTask = typename detail::identity<std::function<void(In ..., Async::Future<Out>&)>>::type;
+using ThenTask = typename detail::identity<std::function<void(In ..., KAsync::Future<Out>&)>>::type;
 template<typename Out, typename ... In>
 using SyncThenTask = typename detail::identity<std::function<Out(In ...)>>::type;
 template<typename Out, typename In>
-using EachTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
+using EachTask = typename detail::identity<std::function<void(In, KAsync::Future<Out>&)>>::type;
 template<typename Out, typename In>
 using SyncEachTask = typename detail::identity<std::function<Out(In)>>::type;
 template<typename Out, typename In>
-using ReduceTask = typename detail::identity<std::function<void(In, Async::Future<Out>&)>>::type;
+using ReduceTask = typename detail::identity<std::function<void(In, KAsync::Future<Out>&)>>::type;
 template<typename Out, typename In>
 using SyncReduceTask = typename detail::identity<std::function<Out(In)>>::type;
 
@@ -96,15 +98,15 @@ namespace Private
 class ExecutorBase;
 typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
 
-struct Execution {
+struct KASYNC_EXPORT Execution {
     Execution(const ExecutorBasePtr &executor);
     ~Execution();
     void setFinished();
 
     template<typename T>
-    Async::Future<T>* result() const
+    KAsync::Future<T>* result() const
     {
-        return static_cast<Async::Future<T>*>(resultBase);
+        return static_cast<KAsync::Future<T>*>(resultBase);
     }
 
     void releaseFuture();
@@ -125,16 +127,16 @@ struct Execution {
 
 typedef QSharedPointer<Execution> ExecutionPtr;
 
-class ExecutorBase
+class KASYNC_EXPORT ExecutorBase
 {
     template<typename PrevOut, typename Out, typename ... In>
     friend class Executor;
 
     template<typename Out, typename ... In>
-    friend class Async::Job;
+    friend class KAsync::Job;
 
     friend class Execution;
-    friend class Async::Tracer;
+    friend class KAsync::Tracer;
 
 public:
     virtual ~ExecutorBase();
@@ -144,7 +146,7 @@ protected:
     ExecutorBase(const ExecutorBasePtr &parent);
 
     template<typename T>
-    Async::Future<T>* createFuture(const ExecutionPtr &execution) const;
+    KAsync::Future<T>* createFuture(const ExecutionPtr &execution) const;
 
     virtual bool hasErrorFunc() const = 0;
     virtual bool handleError(const ExecutionPtr &execution) = 0;
@@ -193,7 +195,7 @@ public:
     void run(const ExecutionPtr &execution);
 private:
     EachTask<Out, In> mFunc;
-    QVector<Async::FutureWatcher<Out>*> mFutureWatchers;
+    QVector<KAsync::FutureWatcher<Out>*> mFutureWatchers;
 };
 
 template<typename Out, typename In>
@@ -234,8 +236,8 @@ public:
     SyncEachExecutor(SyncEachTask<Out, In> each, ErrorHandler errorFunc, const ExecutorBasePtr &parent);
     void run(const ExecutionPtr &execution);
 private:
-    void run(Async::Future<Out> *future, const typename PrevOut::value_type &arg, std::false_type); // !std::is_void<Out>
-    void run(Async::Future<Out> *future, const typename PrevOut::value_type &arg, std::true_type);  // std::is_void<Out>
+    void run(KAsync::Future<Out> *future, const typename PrevOut::value_type &arg, std::false_type); // !std::is_void<Out>
+    void run(KAsync::Future<Out> *future, const typename PrevOut::value_type &arg, std::true_type);  // std::is_void<Out>
     SyncEachTask<Out, In> mFunc;
 };
 
@@ -244,11 +246,11 @@ private:
 /**
  * Start an asynchronous job sequence.
  *
- * Async::start() is your starting point to build a chain of jobs to be executed
+ * KAsync::start() is your starting point to build a chain of jobs to be executed
  * asynchronously.
  *
  * @param func An asynchronous function to be executed. The function must have
- *             void return type, and accept exactly one argument of type @p Async::Future<In>,
+ *             void return type, and accept exactly one argument of type @p KAsync::Future<In>,
  *             where @p In is type of the result.
  */
 template<typename Out, typename ... In>
@@ -267,14 +269,14 @@ Job<ReturnType, Args ...> start();
  * 
  * The loop continues while @param condition returns true.
  */
-Job<void> dowhile(Condition condition, ThenTask<void> func);
+KASYNC_EXPORT Job<void> dowhile(Condition condition, ThenTask<void> func);
 
 /**
  * Async while loop.
  *
  * Loop continues while body returns true.
  */
-Job<void> dowhile(ThenTask<bool> body);
+KASYNC_EXPORT Job<void> dowhile(ThenTask<bool> body);
 
 /**
  * Iterate over a container.
@@ -287,7 +289,7 @@ Job<Out> iterate(const Out &container);
 /**
  * Async delay.
  */
-Job<void> wait(int delay);
+KASYNC_EXPORT Job<void> wait(int delay);
 
 /**
  * A null job.
@@ -307,7 +309,7 @@ Job<Out> null();
 template<typename Out>
 Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
 
-class JobBase
+class KASYNC_EXPORT JobBase
 {
     template<typename Out, typename ... In>
     friend class Job;
@@ -324,18 +326,18 @@ protected:
  * An Asynchronous job
  *
  * A single instance of Job represents a single method that will be executed
- * asynchrously. The Job is started by @p Job::exec(), which returns @p Async::Future
+ * asynchrously. The Job is started by @p Job::exec(), which returns @p KAsync::Future
  * immediatelly. The Future will be set to finished state once the asynchronous
- * task has finished. You can use @p Async::Future::waitForFinished() to wait for
+ * task has finished. You can use @p KAsync::Future::waitForFinished() to wait for
  * for the Future in blocking manner.
  *
  * It is possible to chain multiple Jobs one after another in different fashion
  * (sequential, parallel, etc.). Calling Job::exec() will then return a pending
- * @p Async::Future, and will execute the entire chain of jobs.
+ * @p KAsync::Future, and will execute the entire chain of jobs.
  *
  * @code
  * auto job = Job::start<QList<int>>(
- *     [](Async::Future<QList<int>> &future) {
+ *     [](KAsync::Future<QList<int>> &future) {
  *         MyREST::PendingUsers *pu = MyREST::requestListOfUsers();
  *         QObject::connect(pu, &PendingOperation::finished,
  *                          [&](PendingOperation *pu) {
@@ -344,7 +346,7 @@ protected:
  *                          });
  *      })
  * .each<QList<MyREST::User>, int>(
- *      [](const int &userId, Async::Future<QList<MyREST::User>> &future) {
+ *      [](const int &userId, KAsync::Future<QList<MyREST::User>> &future) {
  *          MyREST::PendingUser *pu = MyREST::requestUserDetails(userId);
  *          QObject::connect(pu, &PendingOperation::finished,
  *                           [&](PendingOperation *pu) {
@@ -353,7 +355,7 @@ protected:
  *                           });
  *      });
  *
- * Async::Future<QList<MyREST::User>> usersFuture = job.exec();
+ * KAsync::Future<QList<MyREST::User>> usersFuture = job.exec();
  * usersFuture.waitForFinished();
  * QList<MyRest::User> users = usersFuture.value();
  * @endcode
@@ -369,10 +371,10 @@ class Job : public JobBase
     friend class Job;
 
     template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> start(Async::ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
+    friend Job<OutOther, InOther ...> start(KAsync::ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
 
     template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> start(Async::SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
+    friend Job<OutOther, InOther ...> start(KAsync::SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
 
 #ifdef WITH_KJOB
     template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
@@ -454,7 +456,7 @@ public:
     }
 
     template<typename FirstIn>
-    Async::Future<Out> exec(FirstIn in)
+    KAsync::Future<Out> exec(FirstIn in)
     {
         // Inject a fake sync executor that will return the initial value
         Private::ExecutorBasePtr first = mExecutor;
@@ -474,10 +476,10 @@ public:
         return result;
     }
 
-    Async::Future<Out> exec()
+    KAsync::Future<Out> exec()
     {
         Private::ExecutionPtr execution = mExecutor->exec(mExecutor);
-        Async::Future<Out> result = *execution->result<Out>();
+        KAsync::Future<Out> result = *execution->result<Out>();
 
         return result;
     }
@@ -499,15 +501,15 @@ private:
     template<typename InOther>
     void reduceInvariants()
     {
-        static_assert(Async::detail::isIterable<Out>::value,
+        static_assert(KAsync::detail::isIterable<Out>::value,
                       "The 'Result' task can only be connected to a job that returns a list or an array");
         static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
                       "The return type of previous task must be compatible with input type of this task");
     }
 
     template<typename OutOther, typename ... InOther>
-    inline std::function<void(InOther ..., Async::Future<OutOther>&)> nestedJobWrapper(Job<OutOther, InOther ...> otherJob) {
-        return [otherJob](InOther ... in, Async::Future<OutOther> &future) {
+    inline std::function<void(InOther ..., KAsync::Future<OutOther>&)> nestedJobWrapper(Job<OutOther, InOther ...> otherJob) {
+        return [otherJob](InOther ... in, KAsync::Future<OutOther> &future) {
             // copy by value is const
             auto job = otherJob;
             FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
@@ -518,7 +520,7 @@ private:
                                  // in copyFutureValue()
                                  // copy by value is const
                                  auto outFuture = future;
-                                 Async::detail::copyFutureValue(watcher->future(), outFuture);
+                                 KAsync::detail::copyFutureValue(watcher->future(), outFuture);
                                  if (watcher->future().errorCode()) {
                                      outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
                                  } else {
@@ -531,12 +533,12 @@ private:
     }
 };
 
-} // namespace Async
+} // namespace KAsync
 
 
 // ********** Out of line definitions ****************
 
-namespace Async {
+namespace KAsync {
 
 template<typename Out, typename ... In>
 Job<Out, In ...> start(ThenTask<Out, In ...> func, ErrorHandler error)
@@ -557,7 +559,7 @@ template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResu
 Job<ReturnType, Args ...> start()
 {
     return Job<ReturnType, Args ...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<ReturnType, Args ...>([](const Args & ... args, Async::Future<ReturnType> &future)
+        new Private::ThenExecutor<ReturnType, Args ...>([](const Args & ... args, KAsync::Future<ReturnType> &future)
             {
                 KJobType *job = new KJobType(args ...);
                 job->connect(job, &KJob::finished,
@@ -578,8 +580,8 @@ Job<ReturnType, Args ...> start()
 template<typename Out>
 Job<Out> null()
 {
-    return Async::start<Out>(
-        [](Async::Future<Out> &future) {
+    return KAsync::start<Out>(
+        [](KAsync::Future<Out> &future) {
             future.setFinished();
         });
 }
@@ -587,8 +589,8 @@ Job<Out> null()
 template<typename Out>
 Job<Out> error(int errorCode, const QString &errorMessage)
 {
-    return Async::start<Out>(
-        [errorCode, errorMessage](Async::Future<Out> &future) {
+    return KAsync::start<Out>(
+        [errorCode, errorMessage](KAsync::Future<Out> &future) {
             future.setError(errorCode, errorMessage);
         });
 }
@@ -596,7 +598,7 @@ Job<Out> error(int errorCode, const QString &errorMessage)
 template<typename Out>
 Job<Out> iterate(const Out &container)
 {
-    return Async::start<Out>(
+    return KAsync::start<Out>(
         [container]() {
             return container;
         });
@@ -606,9 +608,9 @@ Job<Out> iterate(const Out &container)
 namespace Private {
 
 template<typename T>
-Async::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) const
+KAsync::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) const
 {
-    return new Async::Future<T>(execution);
+    return new KAsync::Future<T>(execution);
 }
 
 template<typename PrevOut, typename Out, typename ... In>
@@ -625,8 +627,8 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
     execution->prevExecution = mPrev ? mPrev->exec(mPrev) : ExecutionPtr();
 
     execution->resultBase = ExecutorBase::createFuture<Out>(execution);
-    auto fw = new Async::FutureWatcher<Out>();
-    QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
+    auto fw = new KAsync::FutureWatcher<Out>();
+    QObject::connect(fw, &KAsync::FutureWatcher<Out>::futureReady,
                      [fw, execution, this]() {
                          handleError(execution);
                          execution->setFinished();
@@ -634,7 +636,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
                      });
     fw->setFuture(*execution->result<Out>());
 
-    Async::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>() : nullptr;
+    KAsync::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>() : nullptr;
     if (!prevFuture || prevFuture->isFinished()) {
         if (prevFuture) { // prevFuture implies execution->prevExecution
             if (prevFuture->errorCode()) {
@@ -655,8 +657,8 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
         execution->isRunning = true;
         run(execution);
     } else {
-        auto prevFutureWatcher = new Async::FutureWatcher<PrevOut>();
-        QObject::connect(prevFutureWatcher, &Async::FutureWatcher<PrevOut>::futureReady,
+        auto prevFutureWatcher = new KAsync::FutureWatcher<PrevOut>();
+        QObject::connect(prevFutureWatcher, &KAsync::FutureWatcher<PrevOut>::futureReady,
                          [prevFutureWatcher, execution, this]() {
                              auto prevFuture = prevFutureWatcher->future();
                              assert(prevFuture.isFinished());
@@ -679,7 +681,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
                              run(execution);
                          });
 
-        prevFutureWatcher->setFuture(*static_cast<Async::Future<PrevOut>*>(prevFuture));
+        prevFutureWatcher->setFuture(*static_cast<KAsync::Future<PrevOut>*>(prevFuture));
     }
 
     return execution;
@@ -712,7 +714,7 @@ ThenExecutor<Out, In ...>::ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler
 template<typename Out, typename ... In>
 void ThenExecutor<Out, In ...>::run(const ExecutionPtr &execution)
 {
-    Async::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
+    KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
     if (execution->prevExecution) {
         prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
         assert(prevFuture->isFinished());
@@ -744,17 +746,17 @@ void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
 
     for (auto arg : prevFuture->value()) {
         //We have to manually manage the lifetime of these temporary futures
-        Async::Future<Out> *future = new Async::Future<Out>();
+        KAsync::Future<Out> *future = new KAsync::Future<Out>();
         EachExecutor<PrevOut, Out, In>::mFunc(arg, *future);
-        auto fw = new Async::FutureWatcher<Out>();
+        auto fw = new KAsync::FutureWatcher<Out>();
         mFutureWatchers.append(fw);
-        QObject::connect(fw, &Async::FutureWatcher<Out>::futureReady,
+        QObject::connect(fw, &KAsync::FutureWatcher<Out>::futureReady,
                          [out, fw, this, future]() {
                              assert(fw->future().isFinished());
                              const int index = mFutureWatchers.indexOf(fw);
                              assert(index > -1);
                              mFutureWatchers.removeAt(index);
-                             Async::detail::aggregateFutureValue<Out>(fw->future(), *out);
+                             KAsync::detail::aggregateFutureValue<Out>(fw->future(), *out);
                              if (mFutureWatchers.isEmpty()) {
                                  out->setFinished();
                              }
@@ -794,19 +796,19 @@ void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution)
 template<typename Out, typename ... In>
 void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution, std::false_type)
 {
-    Async::Future<typename detail::prevOut<In ...>::type> *prevFuture =
+    KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture =
         execution->prevExecution
             ? execution->prevExecution->result<typename detail::prevOut<In ...>::type>()
             : nullptr;
     (void) prevFuture; // silence 'set but not used' warning
-    Async::Future<Out> *future = execution->result<Out>();
+    KAsync::Future<Out> *future = execution->result<Out>();
     future->setValue(SyncThenExecutor<Out, In...>::mFunc(prevFuture ? prevFuture->value() : In() ...));
 }
 
 template<typename Out, typename ... In>
 void SyncThenExecutor<Out, In ...>::run(const ExecutionPtr &execution, std::true_type)
 {
-    Async::Future<typename detail::prevOut<In ...>::type> *prevFuture =
+    KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture =
         execution->prevExecution
             ? execution->prevExecution->result<typename detail::prevOut<In ...>::type>()
             : nullptr;
@@ -842,13 +844,13 @@ void SyncEachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
 }
 
 template<typename PrevOut, typename Out, typename In>
-void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> *out, const typename PrevOut::value_type &arg, std::false_type)
+void SyncEachExecutor<PrevOut, Out, In>::run(KAsync::Future<Out> *out, const typename PrevOut::value_type &arg, std::false_type)
 {
     out->setValue(out->value() + SyncEachExecutor<PrevOut, Out, In>::mFunc(arg));
 }
 
 template<typename PrevOut, typename Out, typename In>
-void SyncEachExecutor<PrevOut, Out, In>::run(Async::Future<Out> * /* unused */, const typename PrevOut::value_type &arg, std::true_type)
+void SyncEachExecutor<PrevOut, Out, In>::run(KAsync::Future<Out> * /* unused */, const typename PrevOut::value_type &arg, std::true_type)
 {
     SyncEachExecutor<PrevOut, Out, In>::mFunc(arg);
 }
@@ -863,10 +865,10 @@ SyncReduceExecutor<Out, In>::SyncReduceExecutor(SyncReduceTask<Out, In> reduce, 
 
 } // namespace Private
 
-} // namespace Async
+} // namespace KAsync
 
 
 
-#endif // ASYNC_H
+#endif // KASYNC_H
 
 

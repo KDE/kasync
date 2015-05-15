@@ -15,8 +15,10 @@
  * along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ASYNC_DEBUG_H
-#define ASYNC_DEBUG_H
+#ifndef KASYNC_DEBUG_H
+#define KASYNC_DEBUG_H
+
+#include "kasync_export.h"
 
 #include <QLoggingCategory>
 #include <QStringBuilder>
@@ -25,20 +27,20 @@
 #include <typeinfo>
 #endif
 
-namespace Async
+namespace KAsync
 {
 
 Q_DECLARE_LOGGING_CATEGORY(Debug)
 Q_DECLARE_LOGGING_CATEGORY(Trace)
 
-QString demangleName(const char *name);
+KASYNC_EXPORT QString demangleName(const char *name);
 
 namespace Private
 {
 class Execution;
 }
 
-class Tracer
+class KASYNC_EXPORT Tracer
 {
 public:
     Tracer(Private::Execution *execution);
@@ -62,7 +64,7 @@ private:
 #ifndef QT_NO_DEBUG
     template<typename T>
     QString storeExecutorNameExpanded() {
-        return Async::demangleName(typeid(T).name());
+        return KAsync::demangleName(typeid(T).name());
     }
 
     template<typename T, typename ... Tail>
@@ -77,4 +79,4 @@ private:
     #define STORE_EXECUTOR_NAME(...)
 #endif
 
-#endif // ASYNC_DEBUG_H
+#endif // KASYNC_DEBUG_H
