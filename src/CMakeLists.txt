@@ -37,7 +37,7 @@ endif ()
 set_target_properties(KF5Async PROPERTIES
     VERSION ${KASYNC_VERSION_STRING}
     SOVERSION ${KASYNC_SOVERSION}
-    EXPORT_NAME KAsync
+    EXPORT_NAME Async
 )
 
 ecm_generate_pri_file(BASE_NAME KAsync
