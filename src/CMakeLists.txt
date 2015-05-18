@@ -13,6 +13,7 @@ ecm_generate_headers(kasync_HEADERS
     HEADER_NAMES
     Async
     Future
+    REQUIRED_HEADERS kasync_HEADERS
 )
 
 
