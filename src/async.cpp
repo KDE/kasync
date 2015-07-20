@@ -107,9 +107,12 @@ static void asyncWhile(const std::function<void(std::function<void(bool)>)> &bod
 Job<void> KAsync::dowhile(Condition condition, ThenTask<void> body)
 {
     return KAsync::start<void>([body, condition](KAsync::Future<void> &future) {
-        asyncWhile([condition, body](std::function<void(bool)> whileCallback) {
+        asyncWhile([condition, body, &future](std::function<void(bool)> whileCallback) {
             KAsync::start<void>(body).then<void>([whileCallback, condition]() {
                 whileCallback(!condition());
+            },
+            [&future](int code, const QString &errorMessage) {
+                future.setError(code, errorMessage);
             }).exec();
         },
         [&future]() { //while complete
