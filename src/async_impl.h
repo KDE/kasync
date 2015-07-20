@@ -21,6 +21,8 @@
 #include "async.h"
 #include <type_traits>
 
+//@cond PRIVATE
+
 namespace KAsync {
 
 namespace detail {
@@ -77,5 +79,7 @@ aggregateFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 } // namespace Detail
 
 } // namespace KAsync
+
+//@endcond
 
 #endif // KASYNC_IMPL_H

@@ -41,12 +41,16 @@
 #endif
 
 
-/*
- * API to help write async code.
+/**
+ * @mainpage KAsync
  *
- * This API is based around jobs that take lambdas to execute asynchronous tasks. Each async operation can take a continuation,
- * that can then be used to execute further async operations. That way it is possible to build async chains of operations,
- * that can be stored and executed later on. Jobs can be composed, similarly to functions.
+ * @brief API to help write async code.
+ *
+ * This API is based around jobs that take lambdas to execute asynchronous tasks.
+ * Each async operation can take a continuation that can then be used to execute
+ * further async operations. That way it is possible to build async chains of
+ * operations that can be stored and executed later on. Jobs can be composed,
+ * similarly to functions.
  *
  * Relations between the components:
  * * Job: API wrapper around Executors chain. Can be destroyed while still running,
@@ -56,16 +60,18 @@
  *        the parent Job is destroyed. However if the Job is still running it is
  *        guaranteed that the Executor chain will not be destroyed until the execution
  *        is finished.
- * * Execution: The running execution of the task stored in Executor. Each call to Job::exec()
- *        instantiates new Execution chain, which makes it possible for the Job to be
- *        executed multiple times (even in parallel).
+ * * Execution: The running execution of the task stored in Executor. Each call to
+ *        Job::exec() instantiates new Execution chain, which makes it possible for
+ *        the Job to be executed multiple times (even in parallel).
  * * Future: Representation of the result that is being calculated
  *
  *
  * TODO: Composed progress reporting
  * TODO: Possibility to abort a job through future (perhaps optional?)
- * TODO: Support for timeout, specified during exec call, after which the error handler gets called with a defined errorCode.
+ * TODO: Support for timeout, specified during exec call, after which the error
+ *       handler gets called with a defined errorCode.
  */
+
 namespace KAsync {
 
 template<typename PrevOut, typename Out, typename ... In>
@@ -92,6 +98,7 @@ using SyncReduceTask = typename detail::identity<std::function<Out(In)>>::type;
 using ErrorHandler = std::function<void(int, const QString &)>;
 using Condition = std::function<bool()>;
 
+//@cond PRIVATE
 namespace Private
 {
 
@@ -242,36 +249,82 @@ private:
 };
 
 } // namespace Private
+//@endcond
 
 /**
+ * @relates Job
+ *
  * Start an asynchronous job sequence.
  *
- * KAsync::start() is your starting point to build a chain of jobs to be executed
+ * start() is your starting point to build a chain of jobs to be executed
  * asynchronously.
  *
  * @param func An asynchronous function to be executed. The function must have
- *             void return type, and accept exactly one argument of type @p KAsync::Future<In>,
- *             where @p In is type of the result.
+ *             void return type, and accept all arguments enumerated in
+ *             @p In ... pack in addition to one argument of type @p KAsync::Future<Out>,
+ *             where @p Out is type of the result.
+ * @param errorFunc An optional error handler.
  */
 template<typename Out, typename ... In>
 Job<Out, In ...> start(ThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
+/**
+ * @relates Job
+ *
+ * An overload of the start() function above. This version expects a synchronous
+ * task.
+ *
+ * @param func A synchronous task to be executed. The function must have @p Out
+ *             return type and accept all arguments enumerated in the @p In ...
+ *             pack.
+ * @param errorFunc An optional error handler.
+ */
 template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
 #ifdef WITH_KJOB
+/**
+ * @relates Job
+ * An overload of the start() function above. This version is specialized to work
+ * with KJob.
+ *
+ * The KJob is described in the template, as shown in the example below and will
+ * be actually instantiated when the entire chain is started.
+ *
+ * @code
+ * class MyJob : public KJob {
+ *   Q_OBJECT
+ * public:
+ *   MyJob(const QString &in, QObject *parent = Q_NULLPTR);
+ *   virtual ~MyJob();
+ *
+ *   int getResult() const;
+ *
+ *   ...
+ *   ...
+ * };
+ *
+ * auto job = Job::start<int, MyJob, &MyJob::getResult, QString>();
+ * Future<int> future = job.start("Input");
+ * ...
+ * @endcode
+ **/
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
 Job<ReturnType, Args ...> start();
 #endif
 
 /**
+ * @relates Job
+ *
  * Async while loop.
- * 
+ *
  * The loop continues while @param condition returns true.
  */
 KASYNC_EXPORT Job<void> dowhile(Condition condition, ThenTask<void> func);
 
 /**
+ * @relates Job
+ *
  * Async while loop.
  *
  * Loop continues while body returns true.
@@ -279,6 +332,8 @@ KASYNC_EXPORT Job<void> dowhile(Condition condition, ThenTask<void> func);
 KASYNC_EXPORT Job<void> dowhile(ThenTask<bool> body);
 
 /**
+ * @relates Job
+ *
  * Iterate over a container.
  *
  * Use in conjunction with .each
@@ -287,11 +342,15 @@ template<typename Out>
 Job<Out> iterate(const Out &container);
 
 /**
+ * @relates Job
+ *
  * Async delay.
  */
 KASYNC_EXPORT Job<void> wait(int delay);
 
 /**
+ * @relates Job
+ *
  * A null job.
  *
  * An async noop.
@@ -301,6 +360,8 @@ template<typename Out>
 Job<Out> null();
 
 /**
+ * @relates Job
+ *
  * An error job.
  *
  * An async error.
@@ -309,6 +370,7 @@ Job<Out> null();
 template<typename Out>
 Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
 
+//@cond PRIVATE
 class KASYNC_EXPORT JobBase
 {
     template<typename Out, typename ... In>
@@ -321,19 +383,20 @@ public:
 protected:
     Private::ExecutorBasePtr mExecutor;
 };
+//@endcond
 
 /**
- * An Asynchronous job
+ * @brief An Asynchronous job
  *
  * A single instance of Job represents a single method that will be executed
- * asynchrously. The Job is started by @p Job::exec(), which returns @p KAsync::Future
+ * asynchronously. The Job is started by exec(), which returns Future
  * immediatelly. The Future will be set to finished state once the asynchronous
- * task has finished. You can use @p KAsync::Future::waitForFinished() to wait for
+ * task has finished. You can use Future::waitForFinished() to wait for
  * for the Future in blocking manner.
  *
  * It is possible to chain multiple Jobs one after another in different fashion
- * (sequential, parallel, etc.). Calling Job::exec() will then return a pending
- * @p KAsync::Future, and will execute the entire chain of jobs.
+ * (sequential, parallel, etc.). Calling exec() will then return a pending
+ * Future, and will execute the entire chain of jobs.
  *
  * @code
  * auto job = Job::start<QList<int>>(
@@ -361,12 +424,13 @@ protected:
  * @endcode
  *
  * In the example above, calling @p job.exec() will first invoke the first job,
- * which will retrieve a list of IDs, and then will invoke the second function
+ * which will retrieve a list of IDs and then will invoke the second function
  * for each single entry in the list returned by the first function.
  */
 template<typename Out, typename ... In>
 class Job : public JobBase
 {
+    //@cond PRIVATE
     template<typename OutOther, typename ... InOther>
     friend class Job;
 
@@ -380,6 +444,7 @@ class Job : public JobBase
     template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
     friend Job<ReturnType, Args ...> start();
 #endif
+    //@endcond
 
 public:
     template<typename OutOther, typename ... InOther>
@@ -455,6 +520,20 @@ public:
         return reduce<OutOther, InOther>(nestedJobWrapper<OutOther, InOther>(otherJob), errorFunc);
     }
 
+    /**
+     * @brief Starts execution of the job chain.
+     *
+     * This will start the execution of the task chain, starting from the
+     * first one. It is possible to call this function multiple times, each
+     * invocation will start a new processing and provide a new Future to
+     * watch its status.
+     *
+     * @param in Argument to be passed to the very first task
+     * @return Future&lt;Out&gt; object which will contain result of the last
+     * task once if finishes executing. See Future documentation for more details.
+     *
+     * @see exec(), Future
+     */
     template<typename FirstIn>
     KAsync::Future<Out> exec(FirstIn in)
     {
@@ -476,6 +555,19 @@ public:
         return result;
     }
 
+    /**
+     * @brief Starts execution of the job chain.
+     *
+     * This will start the execution of the task chain, starting from the
+     * first one. It is possible to call this function multiple times, each
+     * invocation will start a new processing and provide a new Future to
+     * watch its status.
+     *
+     * @return Future&lt;Out&gt; object which will contain result of the last
+     * task once if finishes executing. See Future documentation for more details.
+     *
+     * @see exec(FirstIn in), Future
+     */
     KAsync::Future<Out> exec()
     {
         Private::ExecutionPtr execution = mExecutor->exec(mExecutor);
@@ -485,6 +577,7 @@ public:
     }
 
 private:
+    //@cond PRIVATE
     Job(Private::ExecutorBasePtr executor)
         : JobBase(executor)
     {}
@@ -531,13 +624,14 @@ private:
             watcher->setFuture(job.exec(in ...));
         };
     }
+    //@endcond
 };
 
 } // namespace KAsync
 
 
 // ********** Out of line definitions ****************
-
+//@cond PRIVATE
 namespace KAsync {
 
 template<typename Out, typename ... In>
@@ -866,7 +960,7 @@ SyncReduceExecutor<Out, In>::SyncReduceExecutor(SyncReduceTask<Out, In> reduce, 
 } // namespace Private
 
 } // namespace KAsync
-
+//@endcond
 
 
 #endif // KASYNC_H

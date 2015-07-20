@@ -1,0 +1,5 @@
+.kdev4
+*.kdev4
+*~
+doc-gen
+build
