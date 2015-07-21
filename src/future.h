@@ -67,7 +67,7 @@ protected:
     class PrivateBase : public QSharedData
     {
     public:
-        PrivateBase(const KAsync::Private::ExecutionPtr &execution);
+        explicit PrivateBase(const KAsync::Private::ExecutionPtr &execution);
         virtual ~PrivateBase();
 
         void releaseExecution();
@@ -81,8 +81,8 @@ protected:
         QWeakPointer<KAsync::Private::Execution> mExecution;
     };
 
-    FutureBase();
-    FutureBase(FutureBase::PrivateBase *dd);
+    explicit FutureBase();
+    explicit FutureBase(FutureBase::PrivateBase *dd);
     FutureBase(const FutureBase &other);
 
     void addWatcher(KAsync::FutureWatcherBase *watcher);
@@ -120,7 +120,7 @@ public:
 
 protected:
     //@cond PRIVATE
-    FutureGeneric(const KAsync::Private::ExecutionPtr &execution)
+    explicit FutureGeneric(const KAsync::Private::ExecutionPtr &execution)
         : FutureBase(new Private(execution))
     {}
 

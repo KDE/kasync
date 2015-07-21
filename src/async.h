@@ -106,8 +106,8 @@ class ExecutorBase;
 typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
 
 struct KASYNC_EXPORT Execution {
-    Execution(const ExecutorBasePtr &executor);
-    ~Execution();
+    explicit Execution(const ExecutorBasePtr &executor);
+    virtual ~Execution();
     void setFinished();
 
     template<typename T>
@@ -178,8 +178,8 @@ protected:
     virtual void run(const ExecutionPtr &execution) = 0;
 
     ExecutionPtr exec(const ExecutorBasePtr &self);
-    bool hasErrorFunc() const { return (bool) mErrorFunc; }
-    bool handleError(const ExecutionPtr &execution);
+    bool hasErrorFunc() const Q_DECL_OVERRIDE { return (bool) mErrorFunc; }
+    bool handleError(const ExecutionPtr &execution) Q_DECL_OVERRIDE;
 
     std::function<void(int, const QString &)> mErrorFunc;
 };
@@ -189,7 +189,7 @@ class ThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out,
 {
 public:
     ThenExecutor(ThenTask<Out, In ...> then, ErrorHandler errorFunc, const ExecutorBasePtr &parent);
-    void run(const ExecutionPtr &execution);
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE;
 private:
     ThenTask<Out, In ...> mFunc;
 };
@@ -199,7 +199,7 @@ class EachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
     EachExecutor(EachTask<Out, In> each, ErrorHandler errorFunc, const ExecutorBasePtr &parent);
-    void run(const ExecutionPtr &execution);
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE;
 private:
     EachTask<Out, In> mFunc;
     QVector<KAsync::FutureWatcher<Out>*> mFutureWatchers;
@@ -219,7 +219,7 @@ class SyncThenExecutor : public Executor<typename detail::prevOut<In ...>::type,
 {
 public:
     SyncThenExecutor(SyncThenTask<Out, In ...> then, ErrorHandler errorFunc, const ExecutorBasePtr &parent);
-    void run(const ExecutionPtr &execution);
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE;
 
 private:
     void run(const ExecutionPtr &execution, std::false_type); // !std::is_void<Out>
@@ -241,7 +241,7 @@ class SyncEachExecutor : public Executor<PrevOut, Out, In>
 {
 public:
     SyncEachExecutor(SyncEachTask<Out, In> each, ErrorHandler errorFunc, const ExecutorBasePtr &parent);
-    void run(const ExecutionPtr &execution);
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE;
 private:
     void run(KAsync::Future<Out> *future, const typename PrevOut::value_type &arg, std::false_type); // !std::is_void<Out>
     void run(KAsync::Future<Out> *future, const typename PrevOut::value_type &arg, std::true_type);  // std::is_void<Out>
@@ -377,8 +377,8 @@ class KASYNC_EXPORT JobBase
     friend class Job;
 
 public:
-    JobBase(const Private::ExecutorBasePtr &executor);
-    ~JobBase();
+    explicit JobBase(const Private::ExecutorBasePtr &executor);
+    virtual ~JobBase();
 
 protected:
     Private::ExecutorBasePtr mExecutor;
@@ -578,7 +578,7 @@ public:
 
 private:
     //@cond PRIVATE
-    Job(Private::ExecutorBasePtr executor)
+    explicit Job(Private::ExecutorBasePtr executor)
         : JobBase(executor)
     {}
 
