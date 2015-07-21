@@ -964,5 +964,3 @@ SyncReduceExecutor<Out, In>::SyncReduceExecutor(SyncReduceTask<Out, In> reduce, 
 
 
 #endif // KASYNC_H
-
-

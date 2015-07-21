@@ -148,4 +148,3 @@ Job<void> KAsync::wait(int delay)
         timer->start(delay);
     });
 }
-
