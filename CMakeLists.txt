@@ -35,7 +35,6 @@ find_package(Qt5 ${QT_REQUIRED_VERSION} REQUIRED COMPONENTS Core Test)
 option(WITH_KJOB "Enable native support for KJob in libasync API (enabled by default)" ON)
 if (WITH_KJOB)
     find_package(KF5CoreAddons REQUIRED ${KF5_VERSION})
-    add_definitions(-DWITH_KJOB)
 endif()
 
 ########### Targets ###########

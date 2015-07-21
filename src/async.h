@@ -36,10 +36,6 @@
 
 #include <QDebug>
 
-#ifdef WITH_KJOB
-#include <KJob>
-#endif
-
 
 /**
  * @mainpage KAsync
@@ -71,6 +67,9 @@
  * TODO: Support for timeout, specified during exec call, after which the error
  *       handler gets called with a defined errorCode.
  */
+
+
+class KJob;
 
 namespace KAsync {
 
@@ -282,7 +281,6 @@ Job<Out, In ...> start(ThenTask<Out, In ...> func, ErrorHandler errorFunc = Erro
 template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
-#ifdef WITH_KJOB
 /**
  * @relates Job
  * An overload of the start() function above. This version is specialized to work
@@ -310,8 +308,8 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = 
  * @endcode
  **/
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
-Job<ReturnType, Args ...> start();
-#endif
+typename std::enable_if<std::is_base_of<KJob, KJobType>::value, Job<ReturnType, Args ...>>::type
+start();
 
 /**
  * @relates Job
@@ -440,10 +438,8 @@ class Job : public JobBase
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> start(KAsync::SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
 
-#ifdef WITH_KJOB
     template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
-    friend Job<ReturnType, Args ...> start();
-#endif
+    friend typename std::enable_if<std::is_base_of<KJob, KJobType>::value, Job<ReturnType, Args ...>>::type start();
     //@endcond
 
 public:
@@ -467,13 +463,12 @@ public:
         return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(otherJob), errorFunc);
     }
 
-#ifdef WITH_KJOB
     template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
-    Job<ReturnType, Args ...> then()
+    typename std::enable_if<std::is_base_of<KJob, KJobType>::value, Job<ReturnType, Args ...>>::type
+    then()
     {
         return start<ReturnType, KJobType, KJobResultMethod, Args ...>();
     }
-#endif
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(EachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
@@ -648,27 +643,27 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler error)
         new Private::SyncThenExecutor<Out, In ...>(func, error, Private::ExecutorBasePtr())));
 }
 
-#ifdef WITH_KJOB
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
-Job<ReturnType, Args ...> start()
+typename std::enable_if<std::is_base_of<KJob, KJobType>::value, Job<ReturnType, Args ...>>::type
+start()
 {
     return Job<ReturnType, Args ...>(Private::ExecutorBasePtr(
         new Private::ThenExecutor<ReturnType, Args ...>([](const Args & ... args, KAsync::Future<ReturnType> &future)
             {
                 KJobType *job = new KJobType(args ...);
-                job->connect(job, &KJob::finished,
+                job->connect(job, &KJobType::finished,
                              [&future](KJob *job) {
-                                 if (job->error()) {
-                                     future.setError(job->error(), job->errorString());
+                                 KJobType *imp = qobject_cast<KJobType*>(job);
+                                 if (imp->error()) {
+                                     future.setError(imp->error(), imp->errorString());
                                  } else {
-                                    future.setValue((static_cast<KJobType*>(job)->*KJobResultMethod)());
+                                    future.setValue((imp->*KJobResultMethod)());
                                     future.setFinished();
                                  }
                              });
                 job->start();
             }, ErrorHandler(), Private::ExecutorBasePtr())));
 }
-#endif
 
 
 template<typename Out>
