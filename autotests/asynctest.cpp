@@ -19,6 +19,9 @@
  *
  */
 
+// Krazy mistakes job.exec() for QDialog::exec() and urges us to use QPointer
+//krazy:excludeall=crashy
+
 #include "../src/async.h"
 
 #include <QObject>

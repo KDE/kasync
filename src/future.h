@@ -132,7 +132,7 @@ protected:
     class Private : public FutureBase::PrivateBase
     {
     public:
-        Private(const KAsync::Private::ExecutionPtr &execution)
+        explicit Private(const KAsync::Private::ExecutionPtr &execution)
             : FutureBase::PrivateBase(execution)
         {}
 
@@ -269,7 +269,7 @@ public:
 
     /**
      * Returns error message set via setError() or empty
-     * string if no error occured.
+     * string if no error occurred.
      *
      * @see setError(), errorCode()
      */

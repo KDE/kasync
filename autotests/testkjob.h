@@ -30,7 +30,7 @@ class TestKJob : public KJob
     Q_OBJECT
 
 public:
-    TestKJob(int result);
+    explicit TestKJob(int result);
     ~TestKJob();
 
     void start();

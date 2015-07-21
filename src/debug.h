@@ -18,6 +18,8 @@
 #ifndef KASYNC_DEBUG_H
 #define KASYNC_DEBUG_H
 
+//krazy:excludeall=dpointer
+
 #include "kasync_export.h"
 
 #include <QLoggingCategory>
@@ -43,7 +45,7 @@ class Execution;
 class KASYNC_EXPORT Tracer
 {
 public:
-    Tracer(Private::Execution *execution);
+    explicit Tracer(Private::Execution *execution);
     ~Tracer();
 
 private:
