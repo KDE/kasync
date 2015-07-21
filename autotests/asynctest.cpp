@@ -574,6 +574,7 @@ void AsyncTest::testErrorHandler()
                 f.setError(1, QLatin1String("error"));
             },
             [&error](int errorCode, const QString &errorMessage) {
+                Q_UNUSED(errorMessage);
                 error += errorCode;
             }
         );
@@ -596,10 +597,12 @@ void AsyncTest::testErrorPropagation()
         })
     .then<int, int>(
         [&called](int v, KAsync::Future<int> &f) {
+            Q_UNUSED(v);
             called = true;
             f.setFinished();
         },
         [&error](int errorCode, const QString &errorMessage) {
+            Q_UNUSED(errorMessage);
             error += errorCode;
         }
     );
@@ -643,6 +646,7 @@ void AsyncTest::testErrorHandlerAsync()
                 );
             },
             [&error](int errorCode, const QString &errorMessage) {
+                Q_UNUSED(errorMessage);
                 error += errorCode;
             }
         );
@@ -671,10 +675,12 @@ void AsyncTest::testErrorPropagationAsync()
         })
     .then<int, int>(
         [&called](int v, KAsync::Future<int> &f) {
+            Q_UNUSED(v);
             called = true;
             f.setFinished();
         },
         [&error](int errorCode, const QString &errorMessage) {
+            Q_UNUSED(errorMessage);
             error += errorCode;
         }
     );
@@ -695,10 +701,12 @@ void AsyncTest::testNestedErrorPropagation()
     auto job = KAsync::start<void>([](){})
         .then<void>(KAsync::error<void>(1, QLatin1String("error"))) //Nested job that throws error
         .then<void>([](KAsync::Future<void> &future) {
+            Q_UNUSED(future);
             //We should never get here
             Q_ASSERT(false);
         },
         [&error](int errorCode, const QString &errorMessage) {
+            Q_UNUSED(errorMessage);
             error += errorCode;
         }
     );

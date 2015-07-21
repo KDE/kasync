@@ -57,7 +57,7 @@ copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 
 template<typename T>
 inline typename std::enable_if<std::is_void<T>::value, void>::type
-copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
+copyFutureValue(const KAsync::Future<T> &/* in */, KAsync::Future<T> &/* out */)
 {
     // noop
 }
@@ -71,7 +71,7 @@ aggregateFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 
 template<typename T>
 inline typename std::enable_if<std::is_void<T>::value, void>::type
-aggregateFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
+aggregateFutureValue(const KAsync::Future<T> & /*in */, KAsync::Future<T> & /*out */)
 {
     // noop
 }
