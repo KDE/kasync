@@ -1,0 +1,33 @@
+\section purpose Purpose
+
+A library to help write async code.
+
+\section desc Description
+
+This API is based around jobs that take lambdas to execute asynchronous tasks.
+Each async operation can take a continuation that can then be used to execute
+further async operations. That way it is possible to build async chains of
+operations that can be stored and executed later on. Jobs can be composed,
+similarly to functions.
+
+Relations between the components:
+<ul>
+<li>Job: API wrapper around Executors chain. Can be destroyed while still running,
+because the actual execution happens in the background</li>
+<li>Executor: Describes task to execute. Executors form a linked list matching the
+order in which they will be executed. The Executor chain is destroyed when
+the parent Job is destroyed. However if the Job is still running it is
+guaranteed that the Executor chain will not be destroyed until the execution
+is finished.</li>
+<li>Execution: The running execution of the task stored in Executor. Each call to
+Job::exec() instantiates new Execution chain, which makes it possible for
+the Job to be executed multiple times (even in parallel).</li>
+<li>Future: Representation of the result that is being calculated</li>
+</ul>
+
+@authors
+
+@licenses
+@gplv2
+
+// DOXYGEN_PROJECTNAME=kasync
