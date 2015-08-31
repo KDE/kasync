@@ -865,6 +865,6 @@ void AsyncTest::benchmarkSyncThenExecutor()
     }
 }
 
-QTEST_MAIN(AsyncTest);
+QTEST_MAIN(AsyncTest)
 
 #include "asynctest.moc"

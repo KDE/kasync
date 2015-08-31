@@ -28,8 +28,8 @@
 namespace KAsync
 {
 
-Q_LOGGING_CATEGORY(Debug, "org.kde.async", QtWarningMsg);
-Q_LOGGING_CATEGORY(Trace, "org.kde.async.trace", QtWarningMsg);
+Q_LOGGING_CATEGORY(Debug, "org.kde.async", QtWarningMsg)
+Q_LOGGING_CATEGORY(Trace, "org.kde.async.trace", QtWarningMsg)
 
 QString demangleName(const char *name)
 {

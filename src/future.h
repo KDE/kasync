@@ -375,7 +375,7 @@ protected:
     Private * const d;
 
 private:
-    Q_DISABLE_COPY(FutureWatcherBase);
+    Q_DISABLE_COPY(FutureWatcherBase)
 };
 //@endcond
 
@@ -448,7 +448,7 @@ Q_SIGNALS:
 #endif
 
 private:
-    Q_DISABLE_COPY(FutureWatcher<T>);
+    Q_DISABLE_COPY(FutureWatcher<T>)
 };
 
 } // namespace Async
