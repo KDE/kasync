@@ -87,12 +87,20 @@ template<typename Out, typename ... In>
 using SyncThenTask = typename detail::identity<std::function<Out(In ...)>>::type;
 template<typename Out, typename In>
 using EachTask = typename detail::identity<std::function<void(In, KAsync::Future<Out>&)>>::type;
+template<typename T, typename Out, typename In>
+using MemberEachTask = void(T::*)(In, KAsync::Future<Out>&);
 template<typename Out, typename In>
 using SyncEachTask = typename detail::identity<std::function<Out(In)>>::type;
+template<typename T, typename Out, typename In>
+using MemberSyncEachTask = Out(T::*)(In);
 template<typename Out, typename In>
 using ReduceTask = typename detail::identity<std::function<void(In, KAsync::Future<Out>&)>>::type;
+template<typename T, typename Out, typename In>
+using MemberReduceTask = void(T::*)(In, KAsync::Future<Out> &);
 template<typename Out, typename In>
 using SyncReduceTask = typename detail::identity<std::function<Out(In)>>::type;
+template<typename T, typename Out, typename In>
+using MemberSyncReduceTask = Out(T::*)(In);
 
 using ErrorHandler = std::function<void(int, const QString &)>;
 using Condition = std::function<bool()>;
@@ -267,6 +275,9 @@ private:
 template<typename Out, typename ... In>
 Job<Out, In ...> start(ThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
+template<typename T, typename Out, typename ... In>
+Job<Out, In ...> start(T *object, typename detail::funcHelper<T, Out, In ...>::type func, ErrorHandler errorFunc = ErrorHandler());
+
 /**
  * @relates Job
  *
@@ -280,6 +291,9 @@ Job<Out, In ...> start(ThenTask<Out, In ...> func, ErrorHandler errorFunc = Erro
  */
 template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
+
+template<typename T, typename Out, typename ... In>
+Job<Out, In ...> start(T *object, typename detail::syncFuncHelper<T, Out, In ...>::type func, ErrorHandler errorFunc = ErrorHandler());
 
 /**
  * @relates Job
@@ -435,8 +449,14 @@ class Job : public JobBase
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> start(KAsync::ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
 
+    template<typename T, typename OutOther, typename ... InOther>
+    friend Job<OutOther, InOther ...> start(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc);
+
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> start(KAsync::SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc);
+
+    template<typename T, typename OutOther, typename ... InOther>
+    friend Job<OutOther, InOther ...> start(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc);
 
     template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
     friend typename std::enable_if<std::is_base_of<KJob, KJobType>::value, Job<ReturnType, Args ...>>::type start();
@@ -450,11 +470,29 @@ public:
             new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
     }
 
+    template<typename T, typename OutOther, typename ... InOther>
+    Job<OutOther, InOther ...> then(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
+            new Private::ThenExecutor<OutOther, InOther ...>(
+                memberFuncWrapper<ThenTask<OutOther, InOther ...>, T, OutOther, InOther ...>(object, func),
+                errorFunc, mExecutor)));
+    }
+
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler())
     {
         return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
             new Private::SyncThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
+    }
+
+    template<typename T, typename OutOther, typename ... InOther>
+    Job<OutOther, InOther ...> then(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
+            new Private::SyncThenExecutor<OutOther, InOther ...>(
+                memberFuncWrapper<SyncThenTask<OutOther, InOther ...>, T, OutOther, InOther ...>(object, func),
+                errorFunc, mExecutor)));
     }
 
     template<typename OutOther, typename ... InOther>
@@ -478,12 +516,32 @@ public:
             new Private::EachExecutor<Out, OutOther, InOther>(func, errorFunc, mExecutor)));
     }
 
+    template<typename T, typename OutOther, typename InOther>
+    Job<OutOther, InOther> each(T *object, MemberEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        eachInvariants<OutOther>();
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::EachExecutor<Out, OutOther, InOther>(
+                memberFuncWrapper<EachTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
+                errorFunc, mExecutor)));
+    }
+
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(SyncEachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
     {
         eachInvariants<OutOther>();
         return Job<OutOther, InOther>(Private::ExecutorBasePtr(
             new Private::SyncEachExecutor<Out, OutOther, InOther>(func, errorFunc, mExecutor)));
+    }
+
+    template<typename T, typename OutOther, typename InOther>
+    Job<OutOther, InOther> each(T *object, MemberSyncEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        eachInvariants<OutOther>();
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::SyncEachExecutor<Out, OutOther, InOther>(
+                memberFuncWrapper<SyncEachTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
+                errorFunc, mExecutor)));
     }
 
     template<typename OutOther, typename InOther>
@@ -501,12 +559,32 @@ public:
             new Private::ReduceExecutor<OutOther, InOther>(func, errorFunc, mExecutor)));
     }
 
+    template<typename T, typename OutOther, typename InOther>
+    Job<OutOther, InOther> reduce(T *object, MemberReduceTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        reduceInvariants<InOther>();
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::ReduceExecutor<OutOther, InOther>(
+                memberFuncWrapper<ReduceTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
+                errorFunc, mExecutor)));
+    }
+
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> reduce(SyncReduceTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
     {
         reduceInvariants<InOther>();
         return Job<OutOther, InOther>(Private::ExecutorBasePtr(
             new Private::SyncReduceExecutor<OutOther, InOther>(func, errorFunc, mExecutor)));
+    }
+
+    template<typename T, typename OutOther, typename InOther>
+    Job<OutOther, InOther> reduce(T *object, MemberSyncReduceTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler())
+    {
+        reduceInvariants<InOther>();
+        return Job<OutOther, InOther>(Private::ExecutorBasePtr(
+            new Private::ReduceExecutor<OutOther, InOther>(
+                memberFuncWrapper<SyncReduceTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
+                errorFunc, mExecutor)));
     }
 
     template<typename OutOther, typename InOther>
@@ -596,7 +674,8 @@ private:
     }
 
     template<typename OutOther, typename ... InOther>
-    inline std::function<void(InOther ..., KAsync::Future<OutOther>&)> nestedJobWrapper(Job<OutOther, InOther ...> otherJob) {
+    inline std::function<void(InOther ..., KAsync::Future<OutOther>&)> nestedJobWrapper(Job<OutOther, InOther ...> otherJob)
+    {
         return [otherJob](InOther ... in, KAsync::Future<OutOther> &future) {
             // copy by value is const
             auto job = otherJob;
@@ -618,6 +697,35 @@ private:
                              });
             watcher->setFuture(job.exec(in ...));
         };
+    }
+
+    template<typename Task, typename T, typename OutOther, typename ... InOther>
+    inline Task memberFuncWrapper(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func)
+    {
+        return [object, func](InOther && ... inArgs, KAsync::Future<OutOther> &future) -> void
+            {
+                (object->*func)(std::forward<InOther>(inArgs) ..., future);
+            };
+    }
+
+    template<typename Task, typename T, typename OutOther, typename ... InOther>
+    inline typename std::enable_if<!std::is_void<OutOther>::value, Task>::type
+    memberFuncWrapper(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func)
+    {
+        return [object, func](InOther && ... inArgs) -> OutOther
+            {
+                return (object->*func)(std::forward<InOther>(inArgs) ...);
+            };
+    }
+
+    template<typename Task, typename T, typename OutOther, typename ... InOther>
+    inline typename std::enable_if<std::is_void<OutOther>::value, Task>::type
+    memberFuncWrapper(T *object, typename detail::syncFuncHelper<T, void, InOther ...>::type func, int */*disambiguation*/ = 0)
+    {
+        return [object, func](InOther && ... inArgs) -> void
+            {
+                (object->*func)(std::forward<InOther>(inArgs) ...);
+            };
     }
     //@endcond
 };

@@ -48,6 +48,16 @@ struct prevOut {
     using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
 };
 
+template<typename T, typename Out, typename ... In>
+struct funcHelper {
+    using type = void(T::*)(In ..., KAsync::Future<Out> &);
+};
+
+template<typename T, typename Out, typename ... In>
+struct syncFuncHelper {
+    using type =  Out(T::*)(In ...);
+};
+
 template<typename T>
 inline typename std::enable_if<!std::is_void<T>::value, void>::type
 copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)

@@ -54,6 +54,9 @@ private Q_SLOTS:
     void testSyncThen();
     void testJoinedThen();
     void testVoidThen();
+    void testMemberThen();
+    void testSyncMemberThen();
+    void testSyncVoidMemberThen();
 
     void testAsyncEach();
     void testSyncEach();
@@ -124,8 +127,33 @@ private:
         T mResult;
         QTimer mTimer;
     };
-};
 
+    class MemberTest
+    {
+    public:
+        MemberTest()
+            : mFoo(-1)
+        {
+        }
+
+        void syncFoo(int foo)
+        {
+            mFoo = foo;
+        }
+
+        int syncFooRet(int foo)
+        {
+            return ++foo;
+        }
+
+        void asyncFoo(int foo, KAsync::Future<int> &future)
+        {
+            new AsyncSimulator<int>(future, ++foo);
+        }
+
+        int mFoo;
+    };
+};
 
 template<>
 class AsyncTest::AsyncSimulator<void> {
@@ -149,7 +177,6 @@ private:
     KAsync::Future<void> mFuture;
     QTimer mTimer;
 };
-
 
 
 void AsyncTest::testSyncPromises()
@@ -328,6 +355,58 @@ void AsyncTest::testVoidThen()
 }
 
 
+void AsyncTest::testMemberThen()
+{
+    MemberTest memberTest;
+
+    auto job = KAsync::start<int>(
+        []() -> int {
+            return 42;
+        })
+    .then<MemberTest, int, int>(&memberTest, &MemberTest::asyncFoo);
+
+    auto future = job.exec();
+    future.waitForFinished();
+
+    QVERIFY(future.isFinished());
+    QCOMPARE(future.value(), 43);
+}
+
+void AsyncTest::testSyncMemberThen()
+{
+    MemberTest memberTest;
+
+    auto job = KAsync::start<int>(
+        []() -> int {
+            return 42;
+        })
+    .then<MemberTest, int, int>(&memberTest, &MemberTest::syncFooRet);
+
+    auto future = job.exec();
+    future.waitForFinished();
+
+    QVERIFY(future.isFinished());
+    QCOMPARE(future.value(), 43);
+}
+
+void AsyncTest::testSyncVoidMemberThen()
+{
+    MemberTest memberTest;
+
+    auto job = KAsync::start<int>(
+        []() -> int {
+            return 42;
+        })
+    .then<MemberTest, void, int>(&memberTest, &MemberTest::syncFoo);
+
+    auto future = job.exec();
+    future.waitForFinished();
+
+    QVERIFY(future.isFinished());
+    QCOMPARE(memberTest.mFoo, 42);
+}
+
+
 
 void AsyncTest::testAsyncEach()
 {
@@ -429,7 +508,6 @@ void AsyncTest::testAsyncVoidEachThen()
     QVERIFY(completedJob);
     QCOMPARE(check, expected);
 }
-
 
 
 
