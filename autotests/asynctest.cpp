@@ -82,6 +82,9 @@ private Q_SLOTS:
     void testLifetimeWithoutHandle();
     void testLifetimeWithHandle();
 
+    void testErrorTask_data();
+    void testErrorTask();
+
     void benchmarkSyncThenExecutor();
 
 private:
@@ -930,6 +933,50 @@ void AsyncTest::testLifetimeWithHandle()
 
     QTRY_VERIFY(future.isFinished());
 }
+
+void AsyncTest::testErrorTask_data()
+{
+    QTest::addColumn<bool>("pass");
+    QTest::newRow("pass") << true;
+    QTest::newRow("fail") << false;
+}
+
+void AsyncTest::testErrorTask()
+{
+    QFETCH(bool, pass);
+
+    int errorCode = 0;
+
+    auto job = KAsync::start<int>(
+        []() -> int {
+            return 42;
+        })
+    .then<int, int>(
+        [pass](int in, KAsync::Future<int> &future) {
+            if (pass) {
+                future.setValue(in);
+                future.setFinished();
+            } else {
+                future.setError(in);
+            }
+        })
+    .error(
+        [&errorCode](int error, const QString &) {
+            errorCode = error;
+        });
+
+    KAsync::Future<int> future = job.exec();
+    QTRY_VERIFY(future.isFinished());
+    if (pass) {
+        QCOMPARE(future.value(), 42);
+        QCOMPARE(errorCode, 0);
+        QCOMPARE(future.errorCode(), 0);
+    } else {
+        QCOMPARE(errorCode, 42);
+        QCOMPARE(future.errorCode(), errorCode);
+    }
+}
+
 
 void AsyncTest::benchmarkSyncThenExecutor()
 {

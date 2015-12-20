@@ -511,6 +511,8 @@ public:
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> reduce(Job<OutOther, InOther> otherJob, ErrorHandler errorFunc = ErrorHandler());
 
+    Job<Out, Out> error(ErrorHandler errorFunc = ErrorHandler());
+
     /**
      * @brief Starts execution of the job chain.
      *

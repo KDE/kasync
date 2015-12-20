@@ -192,6 +192,20 @@ Job<OutOther, InOther> Job<Out, In ...>::reduce(Job<OutOther, InOther> otherJob,
 }
 
 template<typename Out, typename ... In>
+Job<Out, Out> Job<Out, In ...>::error(ErrorHandler errorFunc)
+{
+    return Job<Out, Out>(Private::ExecutorBasePtr(
+        new Private::SyncThenExecutor<Out, Out>(
+            [](const Out &in) -> Out {
+                return in;
+            },
+            errorFunc, mExecutor)));
+}
+
+
+
+
+template<typename Out, typename ... In>
 template<typename FirstIn>
 KAsync::Future<Out> Job<Out, In ...>::exec(FirstIn in)
 {
