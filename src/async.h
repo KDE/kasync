@@ -467,13 +467,15 @@ public:
     Job<OutOther, InOther ...> then(ThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename ... InOther>
-    Job<OutOther, InOther ...> then(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler());
+    typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
+    then(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename ... InOther>
-    Job<OutOther, InOther ...> then(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler());
+    typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
+    then(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(Job<OutOther, InOther ...> otherJob, ErrorHandler errorFunc = ErrorHandler());
@@ -485,13 +487,15 @@ public:
     Job<OutOther, InOther> each(EachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename InOther>
-    Job<OutOther, InOther> each(T *object, MemberEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
+    typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther>>::type
+    each(T *object, MemberEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(SyncEachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename InOther>
-    Job<OutOther, InOther> each(T *object, MemberSyncEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
+    typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther>>::type
+    each(T *object, MemberSyncEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(Job<OutOther, InOther> otherJob, ErrorHandler errorFunc = ErrorHandler());
@@ -500,13 +504,15 @@ public:
     Job<OutOther, InOther> reduce(ReduceTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename InOther>
-    Job<OutOther, InOther> reduce(T *object, MemberReduceTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
+    typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther>>::type
+    reduce(T *object, MemberReduceTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> reduce(SyncReduceTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename InOther>
-    Job<OutOther, InOther> reduce(T *object, MemberSyncReduceTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
+    typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther>>::type
+    reduce(T *object, MemberSyncReduceTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> reduce(Job<OutOther, InOther> otherJob, ErrorHandler errorFunc = ErrorHandler());

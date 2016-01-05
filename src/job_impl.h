@@ -37,7 +37,8 @@ Job<OutOther, InOther ...> Job<Out, In ...>::then(ThenTask<OutOther, InOther ...
 
 template<typename Out, typename ... In>
 template<typename T, typename OutOther, typename ... InOther>
-Job<OutOther, InOther ...> Job<Out, In ...>::then(T *object,
+typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
+Job<Out, In ...>::then(T *object,
                                                   typename detail::funcHelper<T, OutOther, InOther ...>::type func,
                                                   ErrorHandler errorFunc)
 {
@@ -58,7 +59,8 @@ Job<OutOther, InOther ...> Job<Out, In ...>::then(SyncThenTask<OutOther, InOther
 
 template<typename Out, typename ... In>
 template<typename T, typename OutOther, typename ... InOther>
-Job<OutOther, InOther ...> Job<Out, In ...>::then(T *object,
+typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
+Job<Out, In ...>::then(T *object,
                                                   typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func,
                                                   ErrorHandler errorFunc)
 {
@@ -95,7 +97,8 @@ Job<OutOther, InOther> Job<Out, In ...>::each(EachTask<OutOther, InOther> func,
 
 template<typename Out, typename ... In>
 template<typename T, typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::each(T *object, MemberEachTask<T, OutOther, InOther> func,
+typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
+Job<Out, In ...>::each(T *object, MemberEachTask<T, OutOther, InOther> func,
                                               ErrorHandler errorFunc)
 {
     eachInvariants<OutOther>();
@@ -117,7 +120,8 @@ Job<OutOther, InOther> Job<Out, In ...>::each(SyncEachTask<OutOther, InOther> fu
 
 template<typename Out, typename ... In>
 template<typename T, typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::each(T *object,
+typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
+Job<Out, In ...>::each(T *object,
                                               MemberSyncEachTask<T, OutOther, InOther> func,
                                               ErrorHandler errorFunc)
 {
@@ -149,7 +153,8 @@ Job<OutOther, InOther> Job<Out, In ...>::reduce(ReduceTask<OutOther, InOther> fu
 
 template<typename Out, typename ... In>
 template<typename T, typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::reduce(T *object,
+typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
+Job<Out, In ...>::reduce(T *object,
                                                 MemberReduceTask<T, OutOther, InOther> func,
                                                 ErrorHandler errorFunc)
 {
@@ -172,7 +177,8 @@ Job<OutOther, InOther> Job<Out, In ...>::reduce(SyncReduceTask<OutOther, InOther
 
 template<typename Out, typename ... In>
 template<typename T, typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::reduce(T *object,
+typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
+Job<Out, In ...>::reduce(T *object,
                                                 MemberSyncReduceTask<T, OutOther, InOther> func,
                                                 ErrorHandler errorFunc)
 {
