@@ -51,6 +51,7 @@ private Q_SLOTS:
     void testStartValue();
 
     void testAsyncThen();
+    void testAsyncThenClassArgument();
     void testSyncThen();
     void testJoinedThen();
     void testVoidThen();
@@ -294,6 +295,25 @@ void AsyncTest::testAsyncThen()
     QCOMPARE(future.value(), 42);
 }
 
+void AsyncTest::testAsyncThenClassArgument()
+{
+    struct Test {};
+
+    auto job = KAsync::start<QSharedPointer<Test>>(
+        [](KAsync::Future<QSharedPointer<Test> > &future) {
+            new AsyncSimulator<QSharedPointer<Test> >(future, QSharedPointer<Test>::create());
+        }).then<void, QSharedPointer<Test> >(
+        [](QSharedPointer<Test> i, KAsync::Future<void> &future) {
+            Q_UNUSED(i);
+            future.setFinished();
+        }
+    );
+
+    auto future = job.exec();
+    future.waitForFinished();
+
+    QVERIFY(future.isFinished());
+}
 
 void AsyncTest::testSyncThen()
 {
