@@ -72,6 +72,13 @@ Job<Out, In ...>::then(T *object,
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
+Job<OutOther, InOther ...> Job<Out, In ...>::then(NestedThenTask<OutOther, InOther ...> func)
+{
+    return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(func));
+}
+
+template<typename Out, typename ... In>
+template<typename OutOther, typename ... InOther>
 Job<OutOther, InOther ...> Job<Out, In ...>::then(Job<OutOther, InOther ...> otherJob, ErrorHandler errorFunc)
 {
     return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(otherJob), errorFunc);
@@ -275,6 +282,33 @@ Job<Out, In ...>::nestedJobWrapper(Job<OutOther, InOther ...> otherJob)
     return [otherJob](InOther ... in, KAsync::Future<OutOther> &future) {
         // copy by value is const
         auto job = otherJob;
+        FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
+        QObject::connect(watcher, &FutureWatcherBase::futureReady,
+                            [watcher, future]() {
+                                // FIXME: We pass future by value, because using reference causes the
+                                // future to get deleted before this lambda is invoked, leading to crash
+                                // in copyFutureValue()
+                                // copy by value is const
+                                auto outFuture = future;
+                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
+                                if (watcher->future().errorCode()) {
+                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
+                                } else {
+                                    outFuture.setFinished();
+                                }
+                                delete watcher;
+                            });
+        watcher->setFuture(job.exec(in ...));
+    };
+}
+
+template<typename Out, typename ... In>
+template<typename OutOther, typename ... InOther>
+inline std::function<void(InOther ..., KAsync::Future<OutOther>&)>
+Job<Out, In ...>::nestedJobWrapper(std::function<Job<OutOther>(InOther ...)> func)
+{
+    return [func](InOther ... in, KAsync::Future<OutOther> &future) {
+        auto job = func(in ...);
         FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
         QObject::connect(watcher, &FutureWatcherBase::futureReady,
                             [watcher, future]() {

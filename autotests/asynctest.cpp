@@ -48,6 +48,7 @@ private Q_SLOTS:
     void testAsyncPromises();
     void testAsyncPromises2();
     void testNestedAsync();
+    void testNestedJob();
     void testStartValue();
 
     void testAsyncThen();
@@ -262,6 +263,25 @@ void AsyncTest::testNestedAsync()
     job.exec();
 
     QTRY_VERIFY(done);
+}
+
+void AsyncTest::testNestedJob()
+{
+    bool innerDone = false;
+
+    auto job = KAsync::start<int>(
+        []() {
+            return 42;
+        }
+    ).then<int, int>([&innerDone](int in) -> KAsync::Job<int> {
+        return KAsync::start<int>([&innerDone, in]() {
+            innerDone = true;
+            return in;
+        });
+    });
+    auto result = job.exec();
+
+    QVERIFY(innerDone);
 }
 
 void AsyncTest::testStartValue()
