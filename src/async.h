@@ -85,12 +85,16 @@ template<typename Out, typename ... In>
 using ThenTask = typename detail::identity<std::function<void(In ..., KAsync::Future<Out>&)>>::type;
 template<typename Out, typename ... In>
 using SyncThenTask = typename detail::identity<std::function<Out(In ...)>>::type;
+template<typename Out, typename ... In>
+using NestedThenTask = typename detail::identity<std::function<KAsync::Job<Out>(In ...)>>::type;
 template<typename Out, typename In>
 using EachTask = typename detail::identity<std::function<void(In, KAsync::Future<Out>&)>>::type;
 template<typename T, typename Out, typename In>
 using MemberEachTask = void(T::*)(In, KAsync::Future<Out>&);
 template<typename Out, typename In>
 using SyncEachTask = typename detail::identity<std::function<Out(In)>>::type;
+template<typename Out, typename In>
+using NestedEachTask = typename detail::identity<std::function<KAsync::Job<Out>(In)>>::type;
 template<typename T, typename Out, typename In>
 using MemberSyncEachTask = Out(T::*)(In);
 template<typename Out, typename In>
@@ -292,6 +296,14 @@ Job<Out, In ...> start(T *object, typename detail::funcHelper<T, Out, In ...>::t
 template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
+template<typename Out, typename ... In>
+inline typename std::enable_if<!std::is_void<Out>::value, Job<Out, In ...>>::type
+start(NestedThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
+
+template<typename Out, typename ContOut = Job<void>>
+inline typename std::enable_if<std::is_void<Out>::value, Job<void>>::type
+start(NestedThenTask<void> func, ErrorHandler errorFunc = ErrorHandler());
+
 template<typename T, typename Out, typename ... In>
 Job<Out, In ...> start(T *object, typename detail::syncFuncHelper<T, Out, In ...>::type func, ErrorHandler errorFunc = ErrorHandler());
 
@@ -473,6 +485,14 @@ public:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, InOther ...> then(SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
+    template<typename OutOther, typename ... InOther>
+    inline typename std::enable_if<!std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
+    then(NestedThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
+
+    template<typename OutOther, typename ContOut, typename ... InOther>
+    inline typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
+    then(NestedThenTask<void, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
+
     template<typename T, typename OutOther, typename ... InOther>
     typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
     then(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func, ErrorHandler errorFunc = ErrorHandler());
@@ -492,6 +512,9 @@ public:
 
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(SyncEachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
+
+    template<typename OutOther, typename InOther>
+    Job<OutOther, InOther> each(NestedEachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename InOther>
     typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther>>::type
@@ -564,6 +587,12 @@ private:
     template<typename OutOther, typename ... InOther>
     inline std::function<void(InOther ..., KAsync::Future<OutOther>&)> nestedJobWrapper(Job<OutOther, InOther ...> otherJob);
 
+    template<typename OutOther, typename ... InOther>
+    inline std::function<void(InOther ..., KAsync::Future<OutOther>&)> nestedJobWrapper(std::function<Job<OutOther>(InOther ...)> otherJob);
+
+    template<typename OutOther, typename InOther>
+    inline std::function<void(InOther, KAsync::Future<OutOther>&)> nestedJobWrapper(std::function<Job<OutOther>(InOther)> otherJob);
+
     template<typename Task, typename T, typename OutOther, typename ... InOther>
     inline Task memberFuncWrapper(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func);
 
@@ -599,6 +628,58 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler error)
 {
     return Job<Out, In...>(Private::ExecutorBasePtr(
         new Private::SyncThenExecutor<Out, In ...>(func, error, Private::ExecutorBasePtr())));
+}
+
+template<typename Out, typename ... In>
+inline typename std::enable_if<!std::is_void<Out>::value, Job<Out, In ...>>::type
+start(NestedThenTask<Out, In ...> func, ErrorHandler error)
+{
+    return start<Out, In...>([func](In ... in, KAsync::Future<Out> &future){
+        auto job = func(in ...);
+        FutureWatcher<Out> *watcher = new FutureWatcher<Out>();
+        QObject::connect(watcher, &FutureWatcherBase::futureReady,
+                            [watcher, future]() {
+                                // FIXME: We pass future by value, because using reference causes the
+                                // future to get deleted before this lambda is invoked, leading to crash
+                                // in copyFutureValue()
+                                // copy by value is const
+                                auto outFuture = future;
+                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
+                                if (watcher->future().errorCode()) {
+                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
+                                } else {
+                                    outFuture.setFinished();
+                                }
+                                delete watcher;
+                            });
+        watcher->setFuture(job.exec(in ...));
+    }, error);
+}
+
+template<typename Out, typename ContOut>
+inline typename std::enable_if<std::is_void<Out>::value, Job<void>>::type
+start(NestedThenTask<void> func, ErrorHandler error)
+{
+    return start<void>([func](KAsync::Future<void> &future){
+        auto job = func();
+        FutureWatcher<void> *watcher = new FutureWatcher<void>();
+        QObject::connect(watcher, &FutureWatcherBase::futureReady,
+                            [watcher, future]() {
+                                // FIXME: We pass future by value, because using reference causes the
+                                // future to get deleted before this lambda is invoked, leading to crash
+                                // in copyFutureValue()
+                                // copy by value is const
+                                auto outFuture = future;
+                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
+                                if (watcher->future().errorCode()) {
+                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
+                                } else {
+                                    outFuture.setFinished();
+                                }
+                                delete watcher;
+                            });
+        watcher->setFuture(job.exec());
+    }, error);
 }
 
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
