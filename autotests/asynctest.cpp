@@ -48,6 +48,7 @@ private Q_SLOTS:
     void testAsyncPromises();
     void testAsyncPromises2();
     void testNestedAsync();
+    void testNestedJob_data();
     void testNestedJob();
     void testStartValue();
 
@@ -265,23 +266,44 @@ void AsyncTest::testNestedAsync()
     QTRY_VERIFY(done);
 }
 
+void AsyncTest::testNestedJob_data()
+{
+    QTest::addColumn<bool>("pass");
+    QTest::newRow("pass") << true;
+    QTest::newRow("fail") << false;
+}
+
 void AsyncTest::testNestedJob()
 {
+    QFETCH(bool, pass);
     bool innerDone = false;
 
     auto job = KAsync::start<int>(
-        []() {
-            return 42;
+        [&innerDone]() {
+            return KAsync::start<int>([&innerDone]() {
+                innerDone = true;
+                return 42;
+            });
         }
-    ).then<int, int>([&innerDone](int in) -> KAsync::Job<int> {
-        return KAsync::start<int>([&innerDone, in]() {
-            innerDone = true;
-            return in;
-        });
+    ).then<int, int>([&innerDone, pass](int in) -> KAsync::Job<int> {
+        if (pass) {
+            return KAsync::start<int>([&innerDone, in]() {
+                innerDone = true;
+                return in;
+            });
+        } else {
+            return KAsync::error<int>(3, QLatin1String("foobar"));
+        }
     });
-    auto result = job.exec();
+    auto future = job.exec();
 
-    QVERIFY(innerDone);
+    if (pass) {
+        QVERIFY(innerDone);
+        QCOMPARE(future.value(), 42);
+        QCOMPARE(future.errorCode(), 0);
+    } else {
+        QCOMPARE(future.errorCode(), 3);
+    }
 }
 
 void AsyncTest::testStartValue()

@@ -294,6 +294,9 @@ Job<Out, In ...> start(T *object, typename detail::funcHelper<T, Out, In ...>::t
 template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
+template<typename Out, typename ... In>
+Job<Out, In ...> start(NestedThenTask<Out, In ...> func);
+
 template<typename T, typename Out, typename ... In>
 Job<Out, In ...> start(T *object, typename detail::syncFuncHelper<T, Out, In ...>::type func, ErrorHandler errorFunc = ErrorHandler());
 
@@ -607,6 +610,31 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler error)
 {
     return Job<Out, In...>(Private::ExecutorBasePtr(
         new Private::SyncThenExecutor<Out, In ...>(func, error, Private::ExecutorBasePtr())));
+}
+
+template<typename Out, typename ... In>
+Job<Out, In ...> start(NestedThenTask<Out, In ...> func)
+{
+    return start<Out, In...>([func](In ... in, KAsync::Future<Out> &future){
+        auto job = func(in ...);
+        FutureWatcher<Out> *watcher = new FutureWatcher<Out>();
+        QObject::connect(watcher, &FutureWatcherBase::futureReady,
+                            [watcher, future]() {
+                                // FIXME: We pass future by value, because using reference causes the
+                                // future to get deleted before this lambda is invoked, leading to crash
+                                // in copyFutureValue()
+                                // copy by value is const
+                                auto outFuture = future;
+                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
+                                if (watcher->future().errorCode()) {
+                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
+                                } else {
+                                    outFuture.setFinished();
+                                }
+                                delete watcher;
+                            });
+        watcher->setFuture(job.exec(in ...));
+    });
 }
 
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
