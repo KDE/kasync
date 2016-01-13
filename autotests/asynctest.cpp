@@ -63,6 +63,7 @@ private Q_SLOTS:
 
     void testAsyncEach();
     void testSyncEach();
+    void testNestedEach();
     void testJoinedEach();
     void testVoidEachThen();
     void testAsyncVoidEachThen();
@@ -501,6 +502,26 @@ void AsyncTest::testSyncEach()
     .each<QList<int>, int>(
         [](const int &v) -> QList<int> {
             return { v + 1 };
+        });
+
+    KAsync::Future<QList<int>> future = job.exec();
+
+    const QList<int> expected({ 2, 3, 4, 5 });
+    QVERIFY(future.isFinished());
+    QCOMPARE(future.value(), expected);
+}
+
+void AsyncTest::testNestedEach()
+{
+    auto job = KAsync::start<QList<int>>(
+        []() -> QList<int> {
+            return { 1, 2, 3, 4 };
+        })
+    .each<QList<int>, int>(
+        [](const int &v) {
+            return KAsync::start<QList<int> >([v]() -> QList<int> {
+                return { v + 1 };
+            });
         });
 
     KAsync::Future<QList<int>> future = job.exec();

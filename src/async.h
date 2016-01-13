@@ -93,6 +93,8 @@ template<typename T, typename Out, typename In>
 using MemberEachTask = void(T::*)(In, KAsync::Future<Out>&);
 template<typename Out, typename In>
 using SyncEachTask = typename detail::identity<std::function<Out(In)>>::type;
+template<typename Out, typename In>
+using NestedEachTask = typename detail::identity<std::function<KAsync::Job<Out>(In)>>::type;
 template<typename T, typename Out, typename In>
 using MemberSyncEachTask = Out(T::*)(In);
 template<typename Out, typename In>
@@ -501,6 +503,9 @@ public:
     template<typename OutOther, typename InOther>
     Job<OutOther, InOther> each(SyncEachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
 
+    template<typename OutOther, typename InOther>
+    Job<OutOther, InOther> each(NestedEachTask<OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
+
     template<typename T, typename OutOther, typename InOther>
     typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther>>::type
     each(T *object, MemberSyncEachTask<T, OutOther, InOther> func, ErrorHandler errorFunc = ErrorHandler());
@@ -574,6 +579,9 @@ private:
 
     template<typename OutOther, typename ... InOther>
     inline std::function<void(InOther ..., KAsync::Future<OutOther>&)> nestedJobWrapper(std::function<Job<OutOther>(InOther ...)> otherJob);
+
+    template<typename OutOther, typename InOther>
+    inline std::function<void(InOther, KAsync::Future<OutOther>&)> nestedJobWrapper(std::function<Job<OutOther>(InOther)> otherJob);
 
     template<typename Task, typename T, typename OutOther, typename ... InOther>
     inline Task memberFuncWrapper(T *object, typename detail::funcHelper<T, OutOther, InOther ...>::type func);
