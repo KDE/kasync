@@ -72,9 +72,10 @@ Job<Out, In ...>::then(T *object,
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, InOther ...> Job<Out, In ...>::then(NestedThenTask<OutOther, InOther ...> func)
+Job<OutOther, InOther ...> Job<Out, In ...>::then(NestedThenTask<OutOther, InOther ...> func,
+                                                  ErrorHandler errorFunc)
 {
-    return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(func));
+    return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(func), errorFunc);
 }
 
 template<typename Out, typename ... In>

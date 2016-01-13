@@ -297,7 +297,7 @@ template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
 template<typename Out, typename ... In>
-Job<Out, In ...> start(NestedThenTask<Out, In ...> func);
+Job<Out, In ...> start(NestedThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
 template<typename T, typename Out, typename ... In>
 Job<Out, In ...> start(T *object, typename detail::syncFuncHelper<T, Out, In ...>::type func, ErrorHandler errorFunc = ErrorHandler());
@@ -481,7 +481,7 @@ public:
     Job<OutOther, InOther ...> then(SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, InOther ...> then(NestedThenTask<OutOther, InOther ...> func);
+    Job<OutOther, InOther ...> then(NestedThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename ... InOther>
     typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
@@ -621,7 +621,7 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler error)
 }
 
 template<typename Out, typename ... In>
-Job<Out, In ...> start(NestedThenTask<Out, In ...> func)
+Job<Out, In ...> start(NestedThenTask<Out, In ...> func, ErrorHandler error)
 {
     return start<Out, In...>([func](In ... in, KAsync::Future<Out> &future){
         auto job = func(in ...);
@@ -642,7 +642,7 @@ Job<Out, In ...> start(NestedThenTask<Out, In ...> func)
                                 delete watcher;
                             });
         watcher->setFuture(job.exec(in ...));
-    });
+    }, error);
 }
 
 template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
