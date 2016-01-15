@@ -297,7 +297,12 @@ template<typename Out, typename ... In>
 Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
 
 template<typename Out, typename ... In>
-Job<Out, In ...> start(NestedThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
+inline typename std::enable_if<!std::is_void<Out>::value, Job<Out, In ...>>::type
+start(NestedThenTask<Out, In ...> func, ErrorHandler errorFunc = ErrorHandler());
+
+template<typename Out, typename ContOut = Job<void>>
+inline typename std::enable_if<std::is_void<Out>::value, Job<void>>::type
+start(NestedThenTask<void> func, ErrorHandler errorFunc = ErrorHandler());
 
 template<typename T, typename Out, typename ... In>
 Job<Out, In ...> start(T *object, typename detail::syncFuncHelper<T, Out, In ...>::type func, ErrorHandler errorFunc = ErrorHandler());
@@ -621,7 +626,8 @@ Job<Out, In ...> start(SyncThenTask<Out, In ...> func, ErrorHandler error)
 }
 
 template<typename Out, typename ... In>
-Job<Out, In ...> start(NestedThenTask<Out, In ...> func, ErrorHandler error)
+inline typename std::enable_if<!std::is_void<Out>::value, Job<Out, In ...>>::type
+start(NestedThenTask<Out, In ...> func, ErrorHandler error)
 {
     return start<Out, In...>([func](In ... in, KAsync::Future<Out> &future){
         auto job = func(in ...);
@@ -642,6 +648,32 @@ Job<Out, In ...> start(NestedThenTask<Out, In ...> func, ErrorHandler error)
                                 delete watcher;
                             });
         watcher->setFuture(job.exec(in ...));
+    }, error);
+}
+
+template<typename Out, typename ContOut>
+inline typename std::enable_if<std::is_void<Out>::value, Job<void>>::type
+start(NestedThenTask<void> func, ErrorHandler error)
+{
+    return start<void>([func](KAsync::Future<void> &future){
+        auto job = func();
+        FutureWatcher<void> *watcher = new FutureWatcher<void>();
+        QObject::connect(watcher, &FutureWatcherBase::futureReady,
+                            [watcher, future]() {
+                                // FIXME: We pass future by value, because using reference causes the
+                                // future to get deleted before this lambda is invoked, leading to crash
+                                // in copyFutureValue()
+                                // copy by value is const
+                                auto outFuture = future;
+                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
+                                if (watcher->future().errorCode()) {
+                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
+                                } else {
+                                    outFuture.setFinished();
+                                }
+                                delete watcher;
+                            });
+        watcher->setFuture(job.exec());
     }, error);
 }
 

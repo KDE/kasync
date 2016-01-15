@@ -50,6 +50,7 @@ private Q_SLOTS:
     void testNestedAsync();
     void testNestedJob_data();
     void testNestedJob();
+    void testVoidNestedJob();
     void testStartValue();
 
     void testAsyncThen();
@@ -305,6 +306,25 @@ void AsyncTest::testNestedJob()
     } else {
         QCOMPARE(future.errorCode(), 3);
     }
+}
+
+void AsyncTest::testVoidNestedJob()
+{
+    bool innerDone = false;
+    auto job = KAsync::start<void, KAsync::Job<void> >(
+        [&innerDone]() -> KAsync::Job<void> {
+            return KAsync::start<void>([&innerDone]() {
+                innerDone = true;
+            });
+        }
+    );
+    // .then<void>([&innerDone]() -> KAsync::Job<void> {
+    //     return KAsync::start<void>([&innerDone]() {
+    //         innerDone = true;
+    //     });
+    // });
+    auto future = job.exec();
+    QCOMPARE(future.errorCode(), 0);
 }
 
 void AsyncTest::testStartValue()
