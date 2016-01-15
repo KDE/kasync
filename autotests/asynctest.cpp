@@ -310,21 +310,30 @@ void AsyncTest::testNestedJob()
 
 void AsyncTest::testVoidNestedJob()
 {
-    bool innerDone = false;
+    bool innerDone1 = false;
+    bool innerDone2 = false;
+    bool innerDone3 = false;
     auto job = KAsync::start<void, KAsync::Job<void> >(
-        [&innerDone]() -> KAsync::Job<void> {
-            return KAsync::start<void>([&innerDone]() {
-                innerDone = true;
+        [&innerDone1]() -> KAsync::Job<void> {
+            return KAsync::start<void>([&innerDone1]() {
+                innerDone1 = true;
             });
         }
     )
-    .then<void, KAsync::Job<void> >([&innerDone]() -> KAsync::Job<void> {
-        return KAsync::start<void>([&innerDone]() {
-            innerDone = true;
+    .then<void, KAsync::Job<void> >([&innerDone2, &innerDone3]() -> KAsync::Job<void> {
+        return KAsync::start<void>([&innerDone2]() {
+            innerDone2 = true;
+        })
+        .then<void>([&innerDone3]() {
+            innerDone3 = true;
         });
     });
     auto future = job.exec();
+    future.waitForFinished();
     QCOMPARE(future.errorCode(), 0);
+    QVERIFY(innerDone1);
+    QVERIFY(innerDone2);
+    QVERIFY(innerDone3);
 }
 
 void AsyncTest::testStartValue()
