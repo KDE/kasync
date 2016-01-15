@@ -317,12 +317,12 @@ void AsyncTest::testVoidNestedJob()
                 innerDone = true;
             });
         }
-    );
-    // .then<void>([&innerDone]() -> KAsync::Job<void> {
-    //     return KAsync::start<void>([&innerDone]() {
-    //         innerDone = true;
-    //     });
-    // });
+    )
+    .then<void, KAsync::Job<void> >([&innerDone]() -> KAsync::Job<void> {
+        return KAsync::start<void>([&innerDone]() {
+            innerDone = true;
+        });
+    });
     auto future = job.exec();
     QCOMPARE(future.errorCode(), 0);
 }

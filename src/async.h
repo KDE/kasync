@@ -486,7 +486,12 @@ public:
     Job<OutOther, InOther ...> then(SyncThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, InOther ...> then(NestedThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
+    inline typename std::enable_if<!std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
+    then(NestedThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
+
+    template<typename OutOther, typename ContOut>
+    inline typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther>>::type
+    then(NestedThenTask<void> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename ... InOther>
     typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
