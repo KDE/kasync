@@ -489,9 +489,9 @@ public:
     inline typename std::enable_if<!std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
     then(NestedThenTask<OutOther, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
-    template<typename OutOther, typename ContOut>
-    inline typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther>>::type
-    then(NestedThenTask<void> func, ErrorHandler errorFunc = ErrorHandler());
+    template<typename OutOther, typename ContOut, typename ... InOther>
+    inline typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
+    then(NestedThenTask<void, InOther ...> func, ErrorHandler errorFunc = ErrorHandler());
 
     template<typename T, typename OutOther, typename ... InOther>
     typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type

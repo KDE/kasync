@@ -80,11 +80,11 @@ Job<Out, In ...>::then(NestedThenTask<OutOther, InOther ...> func,
 }
 
 template<typename Out, typename ... In>
-template<typename OutOther, typename ContOut>
-typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther>>::type
-Job<Out, In ...>::then(NestedThenTask<void> func, ErrorHandler errorFunc)
+template<typename OutOther, typename ContOut, typename ... InOther>
+typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
+Job<Out, In ...>::then(NestedThenTask<void, InOther ...> func, ErrorHandler errorFunc)
 {
-    return then<OutOther>(nestedJobWrapper<void>(func), errorFunc);
+    return then<OutOther, InOther ...>(nestedJobWrapper<void, InOther ...>(func), errorFunc);
 }
 
 template<typename Out, typename ... In>
