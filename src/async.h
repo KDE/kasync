@@ -543,6 +543,19 @@ public:
     Job<Out, Out> error(ErrorHandler errorFunc = ErrorHandler());
 
     /**
+     * Enable implicit conversion to Job<void>.
+     *
+     * This is necessary in assignments that only use the return value (which is the normal case).
+     * This avoids constructs like:
+     * auto job = KAsync::start<int>( ... )
+     *  .then<void, int>( ... )
+     *  .then<void>([](){}); //Necessary for the assignment without the implicit conversion
+     */
+    operator Job<void>() {
+        return then<void>([](){});
+    }
+
+    /**
      * @brief Starts execution of the job chain.
      *
      * This will start the execution of the task chain, starting from the

@@ -51,6 +51,7 @@ private Q_SLOTS:
     void testNestedJob_data();
     void testNestedJob();
     void testVoidNestedJob();
+    void testImplicitConversion();
     void testStartValue();
 
     void testAsyncThen();
@@ -334,6 +335,19 @@ void AsyncTest::testVoidNestedJob()
     QVERIFY(innerDone1);
     QVERIFY(innerDone2);
     QVERIFY(innerDone3);
+}
+
+void AsyncTest::testImplicitConversion()
+{
+    auto job = KAsync::start<int>(
+        []() -> int {
+            return 42;
+        })
+    .then<void, int>(
+        [](int in, KAsync::Future<void> &future){
+            future.setFinished();
+        });
+    KAsync::Job<void> finalJob = job;
 }
 
 void AsyncTest::testStartValue()
