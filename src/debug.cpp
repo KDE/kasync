@@ -66,10 +66,8 @@ Tracer::~Tracer()
 
 void Tracer::msg(Tracer::MsgType msgType)
 {
-#ifndef QT_NO_DEBUG
     qCDebug(Trace).nospace() << (QString().fill(QLatin1Char(' '), mId * 2) % 
                                  (msgType == KAsync::Tracer::Start ? QStringLiteral(" START ") : QStringLiteral(" END   ")) %
                                  QString::number(mId) % QStringLiteral(" ") %
                                  mExecution->executor->mExecutorName);
-#endif
 }

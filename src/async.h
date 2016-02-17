@@ -137,9 +137,7 @@ struct KASYNC_EXPORT Execution {
 
     ExecutionPtr prevExecution;
 
-#ifndef QT_NO_DEBUG
     Tracer *tracer;
-#endif
 };
 
 
@@ -171,9 +169,7 @@ protected:
 
     ExecutorBasePtr mPrev;
 
-#ifndef QT_NO_DEBUG
     QString mExecutorName;
-#endif
 };
 
 template<typename PrevOut, typename Out, typename ... In>

@@ -29,6 +29,7 @@ Private::Execution::Execution(const Private::ExecutorBasePtr &executor)
     , resultBase(nullptr)
     , isRunning(false)
     , isFinished(false)
+    , tracer(nullptr)
 {
 }
 
@@ -45,11 +46,7 @@ void Private::Execution::setFinished()
 {
     isFinished = true;
     //executor.clear();
-#ifndef QT_NO_DEBUG
-    if (tracer) {
-        delete tracer;
-    }
-#endif
+    delete tracer;
 }
 
 void Private::Execution::releaseFuture()
