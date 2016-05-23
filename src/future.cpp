@@ -22,7 +22,6 @@ using namespace KAsync;
 
 FutureBase::PrivateBase::PrivateBase(const Private::ExecutionPtr &execution)
     : finished(false)
-    , errorCode(0)
     , mExecution(execution)
 {
 }
@@ -87,19 +86,34 @@ bool FutureBase::isFinished() const
 
 void FutureBase::setError(int code, const QString &message)
 {
-    d->errorCode = code;
-    d->errorMessage = message;
+    addError({code, message});
     setFinished();
+}
+
+void FutureBase::addError(const Error &error)
+{
+    d->errors << error;
 }
 
 int FutureBase::errorCode() const
 {
-    return d->errorCode;
+    if (d->errors.isEmpty()) {
+        return 0;
+    }
+    return d->errors.first().errorCode;
 }
 
 QString FutureBase::errorMessage() const
 {
-    return d->errorMessage;
+    if (d->errors.isEmpty()) {
+        return QString();
+    }
+    return d->errors.first().errorMessage;
+}
+
+QVector<Error> FutureBase::errors() const
+{
+    return d->errors;
 }
 
 void FutureBase::setProgress(int processed, int total)

@@ -81,6 +81,7 @@ private Q_SLOTS:
     void testErrorHandlerAsync();
     void testErrorPropagationAsync();
     void testNestedErrorPropagation();
+    void testEachErrorHandler();
 
     void testChainingRunningJob();
     void testChainingFinishedJob();
@@ -930,8 +931,33 @@ void AsyncTest::testNestedErrorPropagation()
     QCOMPARE(error, 1);
 }
 
+void AsyncTest::testEachErrorHandler()
+{
+    auto job = KAsync::start<QList<int>>(
+        []() -> QList<int> {
+            return { 1, 2, 3, 4 };
+        })
+    .each<QList<int>, int>(
+        [](const int &v, KAsync::Future<QList<int>> &f) {
+            if ((v % 2) == 0) {
+                f.setError(1, QString::fromLatin1("error"));
+            } else {
+                f.setValue({ v + 1 });
+                f.setFinished();
+            }
+        });
 
+    KAsync::Future<QList<int>> future = job.exec();
+    future.waitForFinished();
 
+    QVERIFY(future.isFinished());
+    const QList<int> expected({ 2, 4 });
+    QCOMPARE(future.value(), expected);
+
+    QCOMPARE(future.errorCode(), 1);
+    QCOMPARE(future.errorMessage(), QString::fromLatin1("error"));
+    QCOMPARE(future.errors().size(), 2);
+}
 
 void AsyncTest::testChainingRunningJob()
 {

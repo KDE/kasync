@@ -44,6 +44,12 @@ class ExecutorBase;
 typedef QSharedPointer<Execution> ExecutionPtr;
 } // namespace Private
 
+struct KASYNC_EXPORT Error
+{
+    int errorCode;
+    QString errorMessage;
+};
+
 class KASYNC_EXPORT FutureBase
 {
     friend class KAsync::Private::Execution;
@@ -57,8 +63,10 @@ public:
     bool isFinished() const;
 
     void setError(int code = 1, const QString &message = QString());
+    void addError(const Error &error);
     int errorCode() const;
     QString errorMessage() const;
+    QVector<Error> errors() const;
 
     void setProgress(qreal progress);
     void setProgress(int processed, int total);
@@ -73,8 +81,7 @@ protected:
         void releaseExecution();
 
         bool finished;
-        int errorCode;
-        QString errorMessage;
+        QVector<Error> errors;
 
         QVector<QPointer<FutureWatcherBase>> watchers;
     private:

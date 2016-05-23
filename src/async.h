@@ -894,8 +894,11 @@ void EachExecutor<PrevOut, Out, In>::run(const ExecutionPtr &execution)
                              assert(index > -1);
                              mFutureWatchers.removeAt(index);
                              KAsync::detail::aggregateFutureValue<Out>(fw->future(), *out);
+                             if (fw->future().errorCode()) {
+                                out->addError({fw->future().errorCode(), fw->future().errorMessage()});
+                             }
                              if (mFutureWatchers.isEmpty()) {
-                                 out->setFinished();
+                                out->setFinished();
                              }
                              delete fw;
                              delete future;
