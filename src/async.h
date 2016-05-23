@@ -587,6 +587,14 @@ private:
     //@cond PRIVATE
     explicit Job(Private::ExecutorBasePtr executor);
 
+    template<typename InOther, typename ... InOtherTail>
+    void thenInvariants();
+
+    //Base case for an empty parameter pack
+    template<typename ... InOther>
+    typename std::enable_if<(sizeof...(InOther) == 0)>::type
+    thenInvariants();
+
     template<typename OutOther>
     void eachInvariants();
 

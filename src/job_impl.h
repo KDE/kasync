@@ -31,6 +31,7 @@ template<typename OutOther, typename ... InOther>
 Job<OutOther, InOther ...> Job<Out, In ...>::then(ThenTask<OutOther, InOther ...> func,
                                                   ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
         new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
 }
@@ -42,6 +43,7 @@ Job<Out, In ...>::then(T *object,
                                                   typename detail::funcHelper<T, OutOther, InOther ...>::type func,
                                                   ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
         new Private::ThenExecutor<OutOther, InOther ...>(
             memberFuncWrapper<ThenTask<OutOther, InOther ...>, T, OutOther, InOther ...>(object, func),
@@ -53,6 +55,7 @@ template<typename OutOther, typename ... InOther>
 Job<OutOther, InOther ...> Job<Out, In ...>::then(SyncThenTask<OutOther, InOther ...> func,
                                                   ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
         new Private::SyncThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
 }
@@ -64,6 +67,7 @@ Job<Out, In ...>::then(T *object,
                                                   typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func,
                                                   ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
         new Private::SyncThenExecutor<OutOther, InOther ...>(
             memberFuncWrapper<SyncThenTask<OutOther, InOther ...>, T, OutOther, InOther ...>(object, func),
@@ -76,6 +80,7 @@ typename std::enable_if<!std::is_void<OutOther>::value, Job<OutOther, InOther ..
 Job<Out, In ...>::then(NestedThenTask<OutOther, InOther ...> func,
                                                   ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(func), errorFunc);
 }
 
@@ -84,6 +89,7 @@ template<typename OutOther, typename ContOut, typename ... InOther>
 typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
 Job<Out, In ...>::then(NestedThenTask<void, InOther ...> func, ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return then<OutOther, InOther ...>(nestedJobWrapper<void, InOther ...>(func), errorFunc);
 }
 
@@ -91,6 +97,7 @@ template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
 Job<OutOther, InOther ...> Job<Out, In ...>::then(Job<OutOther, InOther ...> otherJob, ErrorHandler errorFunc)
 {
+    thenInvariants<InOther ...>();
     return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(otherJob), errorFunc);
 }
 
@@ -291,6 +298,22 @@ void Job<Out, In ...>::reduceInvariants()
                     "The 'Result' task can only be connected to a job that returns a list or an array");
     static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
                     "The return type of previous task must be compatible with input type of this task");
+}
+
+template<typename Out, typename ... In>
+template<typename InOtherFirst, typename ... InOtherTail>
+void Job<Out, In ...>::thenInvariants()
+{
+    static_assert(!std::is_void<Out>::value && (std::is_convertible<Out, InOtherFirst>::value || std::is_base_of<Out, InOtherFirst>::value),
+                    "The return type of previous task must be compatible with input type of this task");
+}
+
+template<typename Out, typename ... In>
+template<typename ... InOther>
+typename std::enable_if<(sizeof...(InOther) == 0)>::type
+Job<Out, In ...>::thenInvariants()
+{
+
 }
 
 template<typename Out, typename ... In>
