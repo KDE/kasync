@@ -1,6 +1,7 @@
 /*
  * Copyright 2014 - 2015 Daniel Vrátil <dvratil@redhat.com>
  * Copyright 2015        Daniel Vrátil <dvratil@kde.org>
+ * Copyright 2016  Christian Mollekopf <mollekopf@kolabsystems.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public License as
@@ -26,219 +27,327 @@
 namespace KAsync
 {
 
+namespace Private {
+
+template<typename Out, typename ... In>
+class ThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
+{
+public:
+    ThenExecutor(ContinuationHelper<Out, In ...> workerHelper, const ExecutorBasePtr &parent = {}, ExecutionFlag executionFlag = ExecutionFlag::GoodCase)
+        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
+        , mContinuationHelper(workerHelper)
+    {
+        STORE_EXECUTOR_NAME("ThenExecutor", Out, In ...);
+    }
+
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE
+    {
+        KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
+        if (execution->prevExecution) {
+            prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
+            assert(prevFuture->isFinished());
+        }
+
+        //Execute one of the available workers
+        KAsync::Future<Out> *future = execution->result<Out>();
+
+        if (ThenExecutor<Out, In ...>::mContinuationHelper.handleContinuation) {
+            ThenExecutor<Out, In ...>::mContinuationHelper.handleContinuation(prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (ThenExecutor<Out, In ...>::mContinuationHelper.handleErrorContinuation) {
+            ThenExecutor<Out, In ...>::mContinuationHelper.handleErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(), prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (ThenExecutor<Out, In ...>::mContinuationHelper.jobContinuation) {
+            executeJobAndApply(prevFuture ? prevFuture->value() : In() ..., ThenExecutor<Out, In...>::mContinuationHelper.jobContinuation, *future, std::is_void<Out>());
+        } else if (ThenExecutor<Out, In ...>::mContinuationHelper.jobErrorContinuation) {
+            executeJobAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(), prevFuture ? prevFuture->value() : In() ..., ThenExecutor<Out, In...>::mContinuationHelper.jobErrorContinuation, *future, std::is_void<Out>());
+        }
+    }
+
+private:
+
+    void executeJobAndApply(In ... input, const JobContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    {
+        func(input ...)
+            .template then<void, Out>([&future](const KAsync::Error &error,  const Out &v, KAsync::Future<void> &f) {
+                if (error) {
+                    future.setError(error);
+                } else {
+                    future.setResult(v);
+                }
+                f.setFinished();
+            }).exec();
+    }
+
+    void executeJobAndApply(In ... input, const JobContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    {
+        func(input ...)
+            .template then<void>([&future](const KAsync::Error &error, KAsync::Future<void> &f) {
+                if (error) {
+                    future.setError(error);
+                } else {
+                    future.setFinished();
+                }
+                f.setFinished();
+            }).exec();
+    }
+
+    void executeJobAndApply(const Error &error, In ... input, const JobErrorContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    {
+        func(error, input ...)
+            .template then<void, Out>([&future](const KAsync::Error &error,  const Out &v, KAsync::Future<void> &f) {
+                if (error) {
+                    future.setError(error);
+                } else {
+                    future.setResult(v);
+                }
+                f.setFinished();
+            }).exec();
+    }
+
+    void executeJobAndApply(const Error &error, In ... input, const JobErrorContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    {
+        func(error, input ...)
+            .template then<void>([&future](const KAsync::Error &error, KAsync::Future<void> &f) {
+                if (error) {
+                    future.setError(error);
+                } else {
+                    future.setFinished();
+                }
+                f.setFinished();
+            }).exec();
+    }
+
+    ContinuationHelper<Out, In ...> mContinuationHelper;
+};
+
+
+template<typename Out, typename ... In>
+class SyncThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
+{
+private:
+
+    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    {
+        future.setValue(func(input...));
+    }
+
+    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    {
+        func(input...);
+    }
+
+    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    {
+        future.setValue(func(error, input...));
+    }
+
+    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    {
+        func(error, input...);
+    }
+
+    const SyncContinuation<Out, In ...> mContinuation;
+    const SyncErrorContinuation<Out, In ...> mErrorContinuation;
+
+public:
+    SyncThenExecutor(const SyncContinuation<Out, In ...> &worker, const ExecutorBasePtr &parent = ExecutorBasePtr(), ExecutionFlag executionFlag = Always)
+        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
+        , mContinuation(worker)
+    {
+
+    }
+
+    SyncThenExecutor(const SyncErrorContinuation<Out, In ...> &worker, const ExecutorBasePtr &parent = ExecutorBasePtr(), ExecutionFlag executionFlag = Always)
+        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
+        , mErrorContinuation(worker)
+    {
+
+    }
+
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE
+    {
+        KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
+        if (execution->prevExecution) {
+            prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
+            assert(prevFuture->isFinished());
+        }
+
+        KAsync::Future<Out> *future = execution->result<Out>();
+
+        if (SyncThenExecutor<Out, In ...>::mContinuation) {
+            callAndApply(prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mContinuation, *future, std::is_void<Out>());
+        }
+
+        if (SyncThenExecutor<Out, In ...>::mErrorContinuation) {
+            assert(prevFuture);
+            callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(), prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mErrorContinuation, *future, std::is_void<Out>());
+        }
+        future->setFinished();
+    }
+};
+
+template<typename Out, typename ... In>
+class SyncErrorExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
+{
+private:
+    const SyncErrorContinuation<void> mContinuation;
+
+public:
+    SyncErrorExecutor(const SyncErrorContinuation<void> &worker, const ExecutorBasePtr &parent = ExecutorBasePtr(), ExecutionFlag executionFlag = Always)
+        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
+        , mContinuation(worker)
+    {
+
+    }
+
+    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE
+    {
+        KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
+        if (execution->prevExecution) {
+            prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
+            assert(prevFuture->isFinished());
+        }
+
+        KAsync::Future<Out> *future = execution->result<Out>();
+        assert(prevFuture->hasError());
+        mContinuation(prevFuture->errors().first());
+        future->setError(prevFuture->errors().first());
+    }
+};
+
+template<typename T>
+KAsync::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) const
+{
+    return new KAsync::Future<T>(execution);
+}
+
+template<typename PrevOut, typename Out, typename ... In>
+void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> &prevFuture, ExecutionPtr execution) {
+    if (prevFuture.hasError() && executionFlag == ExecutionFlag::GoodCase) {
+        //Propagate the error to the outer Future
+        Q_ASSERT(prevFuture.errors().size() == 1);
+        execution->resultBase->setError(prevFuture.errors().first());
+        return;
+    }
+    if (!prevFuture.hasError() && executionFlag == ExecutionFlag::ErrorCase) {
+        //Propagate the value to the outer Future
+        KAsync::detail::copyFutureValue<PrevOut>(prevFuture, *execution->result<PrevOut>());
+        execution->resultBase->setFinished();
+        return;
+    }
+    run(execution);
+}
+
+template<typename PrevOut, typename Out, typename ... In>
+ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
+{
+    /*
+     * One executor per job, created with the construction of the Job object.
+     * One execution per job per exec(), created only once exec() is called.
+     *
+     * The executors make up the linked list that makes up the complete execution chain.
+     *
+     * The execution then tracks the execution of each executor.
+     */
+
+    // Passing 'self' to execution ensures that the Executor chain remains
+    // valid until the entire execution is finished
+    ExecutionPtr execution = ExecutionPtr::create(self);
+#ifndef QT_NO_DEBUG
+    execution->tracer = new Tracer(execution.data()); // owned by execution
+#endif
+
+    // chainup
+    execution->prevExecution = mPrev ? mPrev->exec(mPrev) : ExecutionPtr();
+
+    execution->resultBase = ExecutorBase::createFuture<Out>(execution);
+    //We watch our own future to finish the execution once we're done
+    auto fw = new KAsync::FutureWatcher<Out>();
+    QObject::connect(fw, &KAsync::FutureWatcher<Out>::futureReady,
+                     [fw, execution, this]() {
+                         execution->setFinished();
+                         delete fw;
+                     });
+    fw->setFuture(*execution->result<Out>());
+
+    KAsync::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>() : nullptr;
+    if (!prevFuture || prevFuture->isFinished()) { //The previous job is already done
+        if (prevFuture) { // prevFuture implies execution->prevExecution
+            runExecution(*prevFuture, execution);
+        } else {
+            run(execution);
+        }
+    } else { //The previous job is still running and we have to wait for it's completion
+        auto prevFutureWatcher = new KAsync::FutureWatcher<PrevOut>();
+        QObject::connect(prevFutureWatcher, &KAsync::FutureWatcher<PrevOut>::futureReady,
+                         [prevFutureWatcher, execution, this]() {
+                             auto prevFuture = prevFutureWatcher->future();
+                             assert(prevFuture.isFinished());
+                             delete prevFutureWatcher;
+                             runExecution(prevFuture, execution);
+                         });
+
+        prevFutureWatcher->setFuture(*static_cast<KAsync::Future<PrevOut>*>(prevFuture));
+    }
+
+    return execution;
+}
+
+} // namespace Private
+
+
+template<typename Out, typename ... In>
+template<typename ... InOther>
+Job<Out, In ...>::operator Job<void>()
+{
+    return thenImpl<void, InOther ...>({[](InOther ...){ return KAsync::null<void>(); }}, {});
+}
+
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, InOther ...> Job<Out, In ...>::then(ThenTask<OutOther, InOther ...> func,
-                                                  ErrorHandler errorFunc)
+Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &workHelper, Private::ExecutionFlag execFlag)
 {
     thenInvariants<InOther ...>();
-    return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename T, typename OutOther, typename ... InOther>
-typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
-Job<Out, In ...>::then(T *object,
-                                                  typename detail::funcHelper<T, OutOther, InOther ...>::type func,
-                                                  ErrorHandler errorFunc)
-{
-    thenInvariants<InOther ...>();
-    return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<OutOther, InOther ...>(
-            memberFuncWrapper<ThenTask<OutOther, InOther ...>, T, OutOther, InOther ...>(object, func),
-            errorFunc, mExecutor)));
+    return Job<OutOther, In ...>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<OutOther, InOther ...>(workHelper, mExecutor, execFlag)));
 }
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, InOther ...> Job<Out, In ...>::then(SyncThenTask<OutOther, InOther ...> func,
-                                                  ErrorHandler errorFunc)
+Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &job)
 {
     thenInvariants<InOther ...>();
-    return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<OutOther, InOther ...>(func, errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename T, typename OutOther, typename ... InOther>
-typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther ...>>::type
-Job<Out, In ...>::then(T *object,
-                                                  typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func,
-                                                  ErrorHandler errorFunc)
-{
-    thenInvariants<InOther ...>();
-    return Job<OutOther, InOther ...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<OutOther, InOther ...>(
-            memberFuncWrapper<SyncThenTask<OutOther, InOther ...>, T, OutOther, InOther ...>(object, func),
-            errorFunc, mExecutor)));
+    auto executor = job.mExecutor;
+    executor->prefix(mExecutor);
+    return Job<OutOther, In ...>(executor);
 }
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-typename std::enable_if<!std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
-Job<Out, In ...>::then(NestedThenTask<OutOther, InOther ...> func,
-                                                  ErrorHandler errorFunc)
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag)
 {
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
-    return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(func), errorFunc);
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename ContOut, typename ... InOther>
-typename std::enable_if<std::is_void<OutOther>::value, Job<OutOther, InOther ...>>::type
-Job<Out, In ...>::then(NestedThenTask<void, InOther ...> func, ErrorHandler errorFunc)
-{
-    thenInvariants<InOther ...>();
-    return then<OutOther, InOther ...>(nestedJobWrapper<void, InOther ...>(func), errorFunc);
+    return Job<OutOther, In...>(Private::ExecutorBasePtr(
+        new Private::SyncThenExecutor<OutOther, InOther ...>(func, mExecutor, execFlag)));
 }
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, InOther ...> Job<Out, In ...>::then(Job<OutOther, InOther ...> otherJob, ErrorHandler errorFunc)
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag)
 {
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
-    return then<OutOther, InOther ...>(nestedJobWrapper<OutOther, InOther ...>(otherJob), errorFunc);
+    return Job<OutOther, In...>(Private::ExecutorBasePtr(
+        new Private::SyncThenExecutor<OutOther, InOther ...>(func, mExecutor, execFlag)));
 }
 
 template<typename Out, typename ... In>
-template<typename ReturnType, typename KJobType, ReturnType (KJobType::*KJobResultMethod)(), typename ... Args>
-typename std::enable_if<std::is_base_of<KJob, KJobType>::value, Job<ReturnType, Args ...>>::type
-Job<Out, In ...>::then()
+Job<Out, In ...> Job<Out, In ...>::onError(const SyncErrorContinuation<void> &errorFunc)
 {
-    return start<ReturnType, KJobType, KJobResultMethod, Args ...>();
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::each(EachTask<OutOther, InOther> func,
-                                              ErrorHandler errorFunc)
-{
-    eachInvariants<OutOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::EachExecutor<Out, OutOther, InOther>(func, errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename T, typename OutOther, typename InOther>
-typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
-Job<Out, In ...>::each(T *object, MemberEachTask<T, OutOther, InOther> func,
-                                              ErrorHandler errorFunc)
-{
-    eachInvariants<OutOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::EachExecutor<Out, OutOther, InOther>(
-            memberFuncWrapper<EachTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
-            errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::each(SyncEachTask<OutOther, InOther> func,
-                                              ErrorHandler errorFunc)
-{
-    eachInvariants<OutOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::SyncEachExecutor<Out, OutOther, InOther>(func, errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::each(NestedEachTask<OutOther, InOther> func,
-                                              ErrorHandler errorFunc)
-{
-    eachInvariants<OutOther>();
-    return each<OutOther, InOther>(nestedJobWrapper<OutOther, InOther>(func), errorFunc);
-}
-
-template<typename Out, typename ... In>
-template<typename T, typename OutOther, typename InOther>
-typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
-Job<Out, In ...>::each(T *object,
-                                              MemberSyncEachTask<T, OutOther, InOther> func,
-                                              ErrorHandler errorFunc)
-{
-    eachInvariants<OutOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::SyncEachExecutor<Out, OutOther, InOther>(
-            memberFuncWrapper<SyncEachTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
-            errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::each(Job<OutOther, InOther> otherJob,
-                                              ErrorHandler errorFunc)
-{
-    eachInvariants<OutOther>();
-    return each<OutOther, InOther>(nestedJobWrapper<OutOther, InOther>(otherJob), errorFunc);
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::reduce(ReduceTask<OutOther, InOther> func,
-                                                ErrorHandler errorFunc)
-{
-    reduceInvariants<InOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::ReduceExecutor<OutOther, InOther>(func, errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename T, typename OutOther, typename InOther>
-typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
-Job<Out, In ...>::reduce(T *object,
-                                                MemberReduceTask<T, OutOther, InOther> func,
-                                                ErrorHandler errorFunc)
-{
-    reduceInvariants<InOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::ReduceExecutor<OutOther, InOther>(
-            memberFuncWrapper<ReduceTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
-            errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::reduce(SyncReduceTask<OutOther, InOther> func,
-                                                ErrorHandler errorFunc)
-{
-    reduceInvariants<InOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::SyncReduceExecutor<OutOther, InOther>(func, errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename T, typename OutOther, typename InOther>
-typename std::enable_if<std::is_class<T>::value, Job<OutOther, InOther> >::type
-Job<Out, In ...>::reduce(T *object,
-                                                MemberSyncReduceTask<T, OutOther, InOther> func,
-                                                ErrorHandler errorFunc)
-{
-    reduceInvariants<InOther>();
-    return Job<OutOther, InOther>(Private::ExecutorBasePtr(
-        new Private::ReduceExecutor<OutOther, InOther>(
-            memberFuncWrapper<SyncReduceTask<OutOther, InOther>, T, OutOther, InOther>(object, func),
-            errorFunc, mExecutor)));
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-Job<OutOther, InOther> Job<Out, In ...>::reduce(Job<OutOther, InOther> otherJob,
-                                                ErrorHandler errorFunc)
-{
-    return reduce<OutOther, InOther>(nestedJobWrapper<OutOther, InOther>(otherJob), errorFunc);
-}
-
-template<typename Out, typename ... In>
-Job<Out, Out> Job<Out, In ...>::error(ErrorHandler errorFunc)
-{
-    return Job<Out, Out>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<Out, Out>(
-            [](const Out &in) -> Out {
-                return in;
-            },
-            errorFunc, mExecutor)));
+    return Job<Out, In...>(Private::ExecutorBasePtr(
+        new Private::SyncErrorExecutor<Out, Out>([=](const Error &error) {
+                errorFunc(error);
+            }, mExecutor, Private::ExecutionFlag::ErrorCase)));
 }
 
 
@@ -253,11 +362,11 @@ KAsync::Future<Out> Job<Out, In ...>::exec(FirstIn in)
     while (first->mPrev) {
         first = first->mPrev;
     }
-    auto init = new Private::SyncThenExecutor<FirstIn>(
-        [in]() -> FirstIn {
-            return in;
-        },
-        ErrorHandler(), Private::ExecutorBasePtr());
+
+    auto init = new Private::ThenExecutor<FirstIn>({[=](Future<FirstIn> &future) {
+            future.setResult(in);
+        }});
+
     first->mPrev = Private::ExecutorBasePtr(init);
 
     auto result = exec();
@@ -279,6 +388,14 @@ template<typename Out, typename ... In>
 Job<Out, In ...>::Job(Private::ExecutorBasePtr executor)
     : JobBase(executor)
 {}
+
+template<typename Out, typename ... In>
+Job<Out, In ...>::Job(const JobContinuation<Out, In ...> &func)
+    : JobBase(new Private::ThenExecutor<Out, In ...>({func}, {}))
+{
+    qWarning() << "Creating job job";
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+}
 
 template<typename Out, typename ... In>
 template<typename OutOther>
@@ -316,120 +433,128 @@ Job<Out, In ...>::thenInvariants()
 
 }
 
+
 template<typename Out, typename ... In>
-template<typename OutOther, typename ... InOther>
-inline std::function<void(InOther ..., KAsync::Future<OutOther>&)>
-Job<Out, In ...>::nestedJobWrapper(Job<OutOther, InOther ...> otherJob)
+Job<Out, In ...> startImpl(const Private::ContinuationHelper<Out, In ...> &helper)
 {
-    return [otherJob](InOther ... in, KAsync::Future<OutOther> &future) {
-        // copy by value is const
-        auto job = otherJob;
-        FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
-        QObject::connect(watcher, &FutureWatcherBase::futureReady,
-                            [watcher, future]() {
-                                // FIXME: We pass future by value, because using reference causes the
-                                // future to get deleted before this lambda is invoked, leading to crash
-                                // in copyFutureValue()
-                                // copy by value is const
-                                auto outFuture = future;
-                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
-                                if (watcher->future().errorCode()) {
-                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
-                                } else {
-                                    outFuture.setFinished();
-                                }
-                                delete watcher;
-                            });
-        watcher->setFuture(job.exec(in ...));
-    };
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return Job<Out, In...>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<Out, In ...>(helper, {}, Private::ExecutionFlag::GoodCase)));
 }
 
 template<typename Out, typename ... In>
-template<typename OutOther, typename ... InOther>
-inline std::function<void(InOther ..., KAsync::Future<OutOther>&)>
-Job<Out, In ...>::nestedJobWrapper(std::function<Job<OutOther>(InOther ...)> func)
+Job<Out, In ...> start(const HandleContinuation<Out, In ...> &func)
 {
-    return [func](InOther ... in, KAsync::Future<OutOther> &future) {
-        auto job = func(in ...);
-        FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
-        QObject::connect(watcher, &FutureWatcherBase::futureReady,
-                            [watcher, future]() {
-                                // FIXME: We pass future by value, because using reference causes the
-                                // future to get deleted before this lambda is invoked, leading to crash
-                                // in copyFutureValue()
-                                // copy by value is const
-                                auto outFuture = future;
-                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
-                                if (watcher->future().errorCode()) {
-                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
-                                } else {
-                                    outFuture.setFinished();
-                                }
-                                delete watcher;
-                            });
-        watcher->setFuture(job.exec(in ...));
-    };
+    return startImpl<Out, In...>({func});
 }
 
 template<typename Out, typename ... In>
-template<typename OutOther, typename InOther>
-inline std::function<void(InOther, KAsync::Future<OutOther>&)>
-Job<Out, In ...>::nestedJobWrapper(std::function<Job<OutOther>(InOther)> func)
+Job<Out, In ...> start(const JobContinuation<Out, In ...> &func)
 {
-    return [func](InOther in, KAsync::Future<OutOther> &future) {
-        auto job = func(in);
-        FutureWatcher<OutOther> *watcher = new FutureWatcher<OutOther>();
-        QObject::connect(watcher, &FutureWatcherBase::futureReady,
-                            [watcher, future]() {
-                                // FIXME: We pass future by value, because using reference causes the
-                                // future to get deleted before this lambda is invoked, leading to crash
-                                // in copyFutureValue()
-                                // copy by value is const
-                                auto outFuture = future;
-                                KAsync::detail::copyFutureValue(watcher->future(), outFuture);
-                                if (watcher->future().errorCode()) {
-                                    outFuture.setError(watcher->future().errorCode(), watcher->future().errorMessage());
-                                } else {
-                                    outFuture.setFinished();
-                                }
-                                delete watcher;
-                            });
-        watcher->setFuture(job.exec(in));
-    };
+    return startImpl<Out, In...>({func});
 }
 
 template<typename Out, typename ... In>
-template<typename Task, typename T, typename OutOther, typename ... InOther>
-inline Task Job<Out, In ...>::memberFuncWrapper(T *object,
-                                                typename detail::funcHelper<T, OutOther, InOther ...>::type func)
+Job<Out, In ...> syncStart(const SyncContinuation<Out, In ...> &func)
 {
-    return [object, func](InOther && ... inArgs, KAsync::Future<OutOther> &future) -> void
-        {
-            (object->*func)(std::forward<InOther>(inArgs) ..., future);
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return Job<Out, In...>(Private::ExecutorBasePtr(
+        new Private::SyncThenExecutor<Out, In ...>(func)));
+}
+
+static KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
+{
+    auto context = new QObject;
+    return start<void>([futures, context](KAsync::Future<void> &future) {
+            const auto total = futures.size();
+            auto count = QSharedPointer<int>::create();
+            int i = 0;
+            for (KAsync::Future<void> subFuture : futures) {
+                i++;
+                if (subFuture.isFinished()) {
+                    *count += 1;
+                    continue;
+                }
+                // FIXME bind lifetime all watcher to future (repectively the main job
+                auto watcher = QSharedPointer<KAsync::FutureWatcher<void>>::create();
+                QObject::connect(watcher.data(), &KAsync::FutureWatcher<void>::futureReady, [count, total, &future, context]() {
+                    *count += 1;
+                    if (*count == total) {
+                        delete context;
+                        future.setFinished();
+                    }
+                });
+                watcher->setFuture(subFuture);
+                context->setProperty(QString::fromLatin1("future%1").arg(i).toLatin1().data(), QVariant::fromValue(watcher));
+            }
+            if (*count == total) {
+                delete context;
+                future.setFinished();
+            }
+        });
+        // .finally<void>([context]() { delete context; });
+}
+
+template<typename List, typename ValueType>
+Job<void, List> forEach(KAsync::Job<void, ValueType> job)
+{
+    auto cont = [job] (const List &values) mutable {
+            QList<KAsync::Future<void>> list;
+            for (const auto &v : values) {
+                auto future = job.exec(v);
+                list << future;
+            }
+            return waitForCompletion(list);
         };
+    return Job<void, List>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
 }
 
-template<typename Out, typename ... In>
-template<typename Task, typename T, typename OutOther, typename ... InOther>
-inline typename std::enable_if<!std::is_void<OutOther>::value, Task>::type
-Job<Out, In ...>::memberFuncWrapper(T *object, typename detail::syncFuncHelper<T, OutOther, InOther ...>::type func)
+template<typename List, typename ValueType = typename List::value_type>
+Job<void, List> forEach(JobContinuation<void, ValueType> func)
 {
-    return [object, func](InOther && ... inArgs) -> OutOther
-        {
-            return (object->*func)(std::forward<InOther>(inArgs) ...);
-        };
+    return forEach<List, ValueType>(KAsync::start<void, ValueType>(func));
 }
 
-template<typename Out, typename ... In>
-template<typename Task, typename T, typename OutOther, typename ... InOther>
-inline typename std::enable_if<std::is_void<OutOther>::value, Task>::type
-Job<Out, In ...>::memberFuncWrapper(T *object, typename detail::syncFuncHelper<T, void, InOther ...>::type func, int *)
+template<typename Out>
+Job<Out> null()
 {
-    return [object, func](InOther && ... inArgs) -> void
-        {
-            (object->*func)(std::forward<InOther>(inArgs) ...);
-        };
+    return KAsync::start<Out>(
+        [](KAsync::Future<Out> &future) {
+            future.setFinished();
+        });
 }
+
+template<typename Out>
+Job<Out> value(Out v)
+{
+    return KAsync::start<Out>(
+        [v](KAsync::Future<Out> &future) {
+            future.setResult(v);
+        });
+}
+
+template<typename Out>
+Job<Out> error(int errorCode, const QString &errorMessage)
+{
+    return error<Out>({errorCode, errorMessage});
+}
+
+template<typename Out>
+Job<Out> error(const char *message)
+{
+    return error<Out>(Error(message));
+}
+
+template<typename Out>
+Job<Out> error(const Error &error)
+{
+    return KAsync::start<Out>(
+        [error](KAsync::Future<Out> &future) {
+            future.setError(error);
+        });
+}
+
 
 } // namespace KAsync
 

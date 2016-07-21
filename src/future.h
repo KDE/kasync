@@ -46,8 +46,31 @@ typedef QSharedPointer<Execution> ExecutionPtr;
 
 struct KASYNC_EXPORT Error
 {
+    Error() : errorCode(0) {};
+    explicit Error(const char *message) : errorCode(1), errorMessage(QString::fromLatin1(message)) {}
+    Error(int code, const char *message) : errorCode(code), errorMessage(QString::fromLatin1(message)) {}
+    Error(int code, const QString &message) : errorCode(code), errorMessage(message) {}
+
+    bool operator ==(const Error &other) const {
+        return (errorCode == other.errorCode) && (errorMessage == other.errorMessage);
+    }
+
+    bool operator !=(const Error &other) const {
+        return !(*this == other);
+    }
+
+    operator bool() const {
+        return (errorCode != 0);
+    }
+
     int errorCode;
     QString errorMessage;
+private:
+    //Disable all implicit conversions except to bool, to avoid accidentally implicitly casting an error to a continuation argument.
+    //This becomes an issue if you forget to specify all template arguments, as the template argument deduction may employ a nonsensical implicit conversion from i.e. error to int. So as long as the Error object is used in the Job::then overload resolution no implicit conversions here.
+    //Of course this "solution" still breaks if you forget the template argument  with a boolean parameter....
+    template <typename T>
+    operator T() const;
 };
 
 class KASYNC_EXPORT FutureBase
@@ -63,7 +86,10 @@ public:
     bool isFinished() const;
 
     void setError(int code = 1, const QString &message = QString());
+    void setError(const Error &error);
     void addError(const Error &error);
+    void clearErrors();
+    bool hasError() const;
     int errorCode() const;
     QString errorMessage() const;
     QVector<Error> errors() const;
@@ -300,6 +326,12 @@ public:
     void setProgress(qreal progress);
 
 #endif // ONLY_DOXYGEN
+
+    void setResult(const T &value)
+    {
+        static_cast<typename FutureGeneric<T>::Private*>(this->d.data())->value = value;
+        FutureBase::setFinished();
+    }
 
 protected:
     //@cond PRIVATE

@@ -1,5 +1,6 @@
 /*
  * Copyright 2014  Daniel Vrátil <dvratil@redhat.com>
+ * Copyright 2016  Christian Mollekopf <mollekopf@kolabsystems.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public License as
@@ -27,8 +28,6 @@ using namespace KAsync;
 Private::Execution::Execution(const Private::ExecutorBasePtr &executor)
     : executor(executor)
     , resultBase(nullptr)
-    , isRunning(false)
-    , isFinished(false)
     , tracer(nullptr)
 {
 }
@@ -44,8 +43,6 @@ Private::Execution::~Execution()
 
 void Private::Execution::setFinished()
 {
-    isFinished = true;
-    //executor.clear();
     delete tracer;
 }
 
@@ -53,19 +50,6 @@ void Private::Execution::releaseFuture()
 {
     resultBase = 0;
 }
-
-bool Private::Execution::errorWasHandled() const
-{
-    Execution *exec = const_cast<Execution*>(this);
-    while (exec) {
-        if (exec->executor->hasErrorFunc()) {
-            return true;
-        }
-        exec = exec->prevExecution.data();
-    }
-    return false;
-}
-
 
 
 
@@ -101,47 +85,31 @@ static void asyncWhile(const std::function<void(std::function<void(bool)>)> &bod
     });
 }
 
-Job<void> KAsync::dowhile(Condition condition, ThenTask<void> body)
+Job<void> KAsync::dowhile(Job<ControlFlowFlag> body)
 {
-    return KAsync::start<void>([body, condition](KAsync::Future<void> &future) {
-        asyncWhile([condition, body, &future](std::function<void(bool)> whileCallback) {
-            KAsync::start<void>(body).then<void>([whileCallback, condition]() {
-                whileCallback(!condition());
-            },
-            [&future](int code, const QString &errorMessage) {
-                future.setError(code, errorMessage);
-            }).exec();
-        },
-        [&future]() { //while complete
-            future.setFinished();
-        });
+    return body.then<void, ControlFlowFlag>([body](const KAsync::Error &error, ControlFlowFlag flag) {
+        if (error) {
+            return KAsync::error(error);
+        } else if (flag == ControlFlowFlag::Continue) {
+            return dowhile(body);
+        }
+        return KAsync::null();
     });
 }
 
-Job<void> KAsync::dowhile(ThenTask<bool> body)
+Job<void> KAsync::dowhile(JobContinuation<ControlFlowFlag> body)
 {
-    return KAsync::start<void>([body](KAsync::Future<void> &future) {
-        asyncWhile([body](std::function<void(bool)> whileCallback) {
-            KAsync::start<bool>(body).then<bool, bool>([whileCallback](bool result) {
-                whileCallback(!result);
-                //FIXME this return value is only required because .then<bool, void> doesn't work
-                return true;
-            }).exec();
-        },
-        [&future]() { //while complete
-            future.setFinished();
-        });
-    });
+    return dowhile(KAsync::start<ControlFlowFlag>([body] {
+        qDebug() << "Calling wrapper";
+        return body();
+    }));
 }
 
 Job<void> KAsync::wait(int delay)
 {
-    auto timer = QSharedPointer<QTimer>::create();
-    return KAsync::start<void>([timer, delay](KAsync::Future<void> &future) {
-        timer->setSingleShot(true);
-        QObject::connect(timer.data(), &QTimer::timeout, [&future]() {
+    return KAsync::start<void>([delay](KAsync::Future<void> &future) {
+        QTimer::singleShot(delay, [&future]() {
             future.setFinished();
         });
-        timer->start(delay);
     });
 }

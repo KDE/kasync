@@ -5,9 +5,9 @@ ecm_add_test(asynctest.cpp
              LINK_LIBRARIES KF5Async Qt5::Test
 )
 
-if (WITH_KJOB)
-    ecm_add_test(kjobtest.cpp testkjob.cpp
-                 TEST_NAME kjobtest
-                 LINK_LIBRARIES KF5Async Qt5::Test KF5::CoreAddons
-    )
-endif()
+# if (WITH_KJOB)
+#     ecm_add_test(kjobtest.cpp testkjob.cpp
+#                  TEST_NAME kjobtest
+#                  LINK_LIBRARIES KF5Async Qt5::Test KF5::CoreAddons
+#     )
+# endif()

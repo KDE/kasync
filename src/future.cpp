@@ -72,6 +72,7 @@ void FutureBase::setFinished()
         return;
     }
     d->finished = true;
+    //TODO this could directly call the next continuation with the value, and thus avoid unnecessary copying.
     for (auto watcher : d->watchers) {
         if (watcher) {
             watcher->futureReadyCallback();
@@ -86,13 +87,31 @@ bool FutureBase::isFinished() const
 
 void FutureBase::setError(int code, const QString &message)
 {
-    addError({code, message});
+    d->errors.clear();
+    addError(Error(code, message));
+    setFinished();
+}
+
+void FutureBase::setError(const Error &error)
+{
+    d->errors.clear();
+    addError(error);
     setFinished();
 }
 
 void FutureBase::addError(const Error &error)
 {
     d->errors << error;
+}
+
+void FutureBase::clearErrors()
+{
+    d->errors.clear();
+}
+
+bool FutureBase::hasError() const
+{
+    return !d->errors.isEmpty();
 }
 
 int FutureBase::errorCode() const
