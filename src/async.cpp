@@ -75,15 +75,6 @@ JobBase::~JobBase()
 {
 }
 
-static void asyncWhile(const std::function<void(std::function<void(bool)>)> &body, const std::function<void()> &completionHandler) {
-    body([body, completionHandler](bool complete) {
-        if (complete) {
-            completionHandler();
-        } else {
-            asyncWhile(body, completionHandler);
-        }
-    });
-}
 
 Job<void> KAsync::dowhile(Job<ControlFlowFlag> body)
 {

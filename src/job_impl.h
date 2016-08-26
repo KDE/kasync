@@ -130,7 +130,7 @@ private:
         future.setValue(func(input...));
     }
 
-    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &, std::true_type)
     {
         func(input...);
     }
@@ -140,7 +140,7 @@ private:
         future.setValue(func(error, input...));
     }
 
-    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &, std::true_type)
     {
         func(error, input...);
     }
