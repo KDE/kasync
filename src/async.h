@@ -397,61 +397,61 @@ class Job : public JobBase
 public:
     /// A continuation
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(const Job<OutOther, InOther ...> &job);
+    Job<OutOther, In ...> then(const Job<OutOther, InOther ...> &job) const;
 
     ///Shorthand for a job that returns another job from it's continuation
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(JobContinuation<OutOther, InOther ...> func)
+    Job<OutOther, In ...> then(JobContinuation<OutOther, InOther ...> func) const
     {
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::GoodCase);
     }
 
     ///Shorthand for a job that receives the error and a handle
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(HandleContinuation<OutOther, InOther ...> func)
+    Job<OutOther, In ...> then(HandleContinuation<OutOther, InOther ...> func) const
     {
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::GoodCase);
     }
 
     ///Shorthand for a job that receives the error and a handle
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(HandleErrorContinuation<OutOther, InOther ...> func)
+    Job<OutOther, In ...> then(HandleErrorContinuation<OutOther, InOther ...> func) const
     {
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that that returns another job from its contiuation and that receives the error
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(JobErrorContinuation<OutOther, InOther ...> func)
+    Job<OutOther, In ...> then(JobErrorContinuation<OutOther, InOther ...> func) const
     {
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::Always);
     }
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThen(const SyncContinuation<OutOther, InOther ...> &func)
+    Job<OutOther, In ...> syncThen(const SyncContinuation<OutOther, InOther ...> &func) const
     {
         return syncThenImpl<OutOther, InOther ...>(func, Private::ExecutionFlag::GoodCase);
     }
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThen(const SyncErrorContinuation<OutOther, InOther ...> &func)
+    Job<OutOther, In ...> syncThen(const SyncErrorContinuation<OutOther, InOther ...> &func) const
     {
         return syncThenImpl<OutOther, InOther ...>(func, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that receives the error only
-    Job<Out, In ...> onError(const SyncErrorContinuation<void> &errorFunc);
+    Job<Out, In ...> onError(const SyncErrorContinuation<void> &errorFunc) const;
 
     ///Shorthand that automatically uses the return type of this job to deduce the type exepected
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
-    Job<void, In ...> each(JobContinuation<void, ValueType> func)
+    Job<void, In ...> each(JobContinuation<void, ValueType> func) const
     {
         eachInvariants<OutOther>();
         return then<void, In ...>(forEach<Out, ValueType>(func));
     }
 
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
-    Job<void, In ...> serialEach(JobContinuation<void, ValueType> func)
+    Job<void, In ...> serialEach(JobContinuation<void, ValueType> func) const
     {
         eachInvariants<OutOther>();
         return then<void, In ...>(serialForEach<Out, ValueType>(func));
@@ -523,26 +523,23 @@ private:
     explicit Job(Private::ExecutorBasePtr executor);
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &helper, Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase);
+    Job<OutOther, In ...> thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &helper, Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase);
+    Job<OutOther, In ...> syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always);
+    Job<OutOther, In ...> syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always) const;
 
     template<typename InOther, typename ... InOtherTail>
-    void thenInvariants();
+    void thenInvariants() const;
 
     //Base case for an empty parameter pack
     template<typename ... InOther>
     typename std::enable_if<(sizeof...(InOther) == 0)>::type
-    thenInvariants();
+    thenInvariants() const;
 
     template<typename OutOther>
-    void eachInvariants();
-
-    template<typename InOther>
-    void reduceInvariants();
+    void eachInvariants() const;
     //@endcond
 };
 

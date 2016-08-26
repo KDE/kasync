@@ -304,7 +304,7 @@ Job<Out, In ...>::operator Job<void>()
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &workHelper, Private::ExecutionFlag execFlag)
+Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &workHelper, Private::ExecutionFlag execFlag) const
 {
     thenInvariants<InOther ...>();
     return Job<OutOther, In ...>(Private::ExecutorBasePtr(
@@ -313,7 +313,7 @@ Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelp
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &job)
+Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &job) const
 {
     thenInvariants<InOther ...>();
     auto executor = job.mExecutor;
@@ -323,7 +323,7 @@ Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &j
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag)
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag) const
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
@@ -333,7 +333,7 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutO
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag)
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag) const
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
@@ -342,7 +342,7 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation
 }
 
 template<typename Out, typename ... In>
-Job<Out, In ...> Job<Out, In ...>::onError(const SyncErrorContinuation<void> &errorFunc)
+Job<Out, In ...> Job<Out, In ...>::onError(const SyncErrorContinuation<void> &errorFunc) const
 {
     return Job<Out, In...>(Private::ExecutorBasePtr(
         new Private::SyncErrorExecutor<Out, Out>([=](const Error &error) {
@@ -399,7 +399,7 @@ Job<Out, In ...>::Job(const JobContinuation<Out, In ...> &func)
 
 template<typename Out, typename ... In>
 template<typename OutOther>
-void Job<Out, In ...>::eachInvariants()
+void Job<Out, In ...>::eachInvariants() const
 {
     static_assert(detail::isIterable<Out>::value,
                     "The 'Each' task can only be connected to a job that returns a list or an array.");
@@ -408,18 +408,8 @@ void Job<Out, In ...>::eachInvariants()
 }
 
 template<typename Out, typename ... In>
-template<typename InOther>
-void Job<Out, In ...>::reduceInvariants()
-{
-    static_assert(KAsync::detail::isIterable<Out>::value,
-                    "The 'Result' task can only be connected to a job that returns a list or an array");
-    static_assert(std::is_same<typename Out::value_type, typename InOther::value_type>::value,
-                    "The return type of previous task must be compatible with input type of this task");
-}
-
-template<typename Out, typename ... In>
 template<typename InOtherFirst, typename ... InOtherTail>
-void Job<Out, In ...>::thenInvariants()
+void Job<Out, In ...>::thenInvariants() const
 {
     static_assert(!std::is_void<Out>::value && (std::is_convertible<Out, InOtherFirst>::value || std::is_base_of<Out, InOtherFirst>::value),
                     "The return type of previous task must be compatible with input type of this task");
@@ -428,7 +418,7 @@ void Job<Out, In ...>::thenInvariants()
 template<typename Out, typename ... In>
 template<typename ... InOther>
 typename std::enable_if<(sizeof...(InOther) == 0)>::type
-Job<Out, In ...>::thenInvariants()
+Job<Out, In ...>::thenInvariants() const
 {
 
 }
@@ -518,8 +508,7 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
             auto serialJob = KAsync::null<void>();
             for (const auto &value : values) {
                 serialJob = serialJob.then<void>([value, job](KAsync::Future<void> &future) {
-                    auto nonconstJob = job;
-                    nonconstJob.template syncThen<void>([&future] {
+                    job.template syncThen<void>([&future] {
                         future.setFinished();
                     })
                     .exec(value);
