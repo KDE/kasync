@@ -78,6 +78,7 @@ private Q_SLOTS:
     // void testSyncVoidMemberThen();
     //
     void testAsyncEach();
+    void testAsyncSerialEach();
     // void testSyncEach();
     // void testNestedEach();
     // void testJoinedEach();
@@ -825,41 +826,84 @@ void AsyncTest::testAsyncEach()
 {
     {
         auto job = KAsync::value<std::vector<int>>({1});
-        job.each<void>([](int i) {
+        auto future = job.each<void>([](int i) {
                 Q_UNUSED(i);
                 return KAsync::null<void>();
-            });
-
+            }).exec();
+        QVERIFY(future.isFinished());
     }
 
-    auto job = KAsync::value<QList<int>>({ 1, 2, 3, 4 });
+    const QList<int> expected({1, 2, 3});
+
+    auto job = KAsync::value<QList<int>>({1, 2, 3});
     {
+        QList<int> result;
         //This is the all manual version
         auto subjob = KAsync::forEach<QList<int>>(
-                KAsync::start<void, int>([](int i) {
-                    Q_UNUSED(i);
+                KAsync::start<void, int>([&result](int i) {
+                    result << i;
                     return KAsync::null<void>();
                 })
             );
-        job.then<void, QList<int>>(
+        auto future = job.then<void, QList<int>>(
                 subjob
-            );
+            ).exec();
+        future.waitForFinished();
+        QVERIFY(future.isFinished());
+        QCOMPARE(result, expected);
 
     }
     {
+        QList<int> result;
         //An this is the convenience wrapper
-        job.each([](int i) {
+        auto future = job.each([&result](int i) {
+                result << i;
+                return KAsync::null<void>();
+            }).exec();
+        future.waitForFinished();
+        QVERIFY(future.isFinished());
+        QCOMPARE(result, expected);
+    }
+}
+
+void AsyncTest::testAsyncSerialEach()
+{
+    {
+        auto job = KAsync::value<std::vector<int>>({1});
+        auto future = job.serialEach<void>([](int i) {
                 Q_UNUSED(i);
                 return KAsync::null<void>();
-            });
+            }).exec();
+
     }
 
-    auto future = job.exec();
-    future.waitForFinished();
+    const QList<int> expected({1, 2, 3});
 
-    // const QList<int> expected({ 2, 3, 4, 5 });
-    QVERIFY(future.isFinished());
-    // QCOMPARE(future.value(), expected);
+    auto job = KAsync::value<QList<int>>({1, 2, 3});
+    {
+        QList<int> result;
+        auto subjob = KAsync::serialForEach<QList<int>>(
+                KAsync::start<void, int>([&](int i) {
+                    result << i;
+                    return KAsync::null<void>();
+                })
+            );
+        auto future = job.then<void, QList<int>>(subjob).exec();
+        future.waitForFinished();
+        QVERIFY(future.isFinished());
+        QCOMPARE(result, expected);
+    }
+    {
+        QList<int> result;
+        //An this is the convenience wrapper
+        auto future = job.serialEach([&result](int i) {
+                result << i;
+                return KAsync::null<void>();
+            }).exec();
+        future.waitForFinished();
+        QVERIFY(future.isFinished());
+        QCOMPARE(result, expected);
+    }
 }
 //
 // void AsyncTest::testSyncEach()

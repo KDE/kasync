@@ -510,10 +510,37 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job)
         new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
 }
 
+
+template<typename List, typename ValueType>
+Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
+{
+    auto cont = [job] (const List &values) mutable {
+            auto serialJob = KAsync::null<void>();
+            for (const auto &value : values) {
+                serialJob = serialJob.then<void>([value, job](KAsync::Future<void> &future) {
+                    auto nonconstJob = job;
+                    nonconstJob.template syncThen<void>([&future] {
+                        future.setFinished();
+                    })
+                    .exec(value);
+                });
+            }
+            return serialJob;
+        };
+    return Job<void, List>(Private::ExecutorBasePtr(
+        new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
+}
+
 template<typename List, typename ValueType = typename List::value_type>
 Job<void, List> forEach(JobContinuation<void, ValueType> func)
 {
     return forEach<List, ValueType>(KAsync::start<void, ValueType>(func));
+}
+
+template<typename List, typename ValueType = typename List::value_type>
+Job<void, List> serialForEach(JobContinuation<void, ValueType> func)
+{
+    return serialForEach<List, ValueType>(KAsync::start<void, ValueType>(func));
 }
 
 template<typename Out>

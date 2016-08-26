@@ -288,6 +288,12 @@ KASYNC_EXPORT Job<void, List> forEach(JobContinuation<void, typename List::value
 template<typename List, typename ValueType = typename List::value_type>
 KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
+template<typename List>
+KASYNC_EXPORT Job<void, List> serialForEach(JobContinuation<void, typename List::value_type>);
+
+template<typename List, typename ValueType = typename List::value_type>
+KASYNC_EXPORT Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
+
 /**
  * @relates Job
  *
@@ -380,6 +386,9 @@ class Job : public JobBase
     template<typename List, typename ValueType>
     friend Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
+    template<typename List, typename ValueType>
+    friend Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
+
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> syncStart(const SyncContinuation<OutOther, InOther ...> &func);
 
@@ -439,6 +448,13 @@ public:
     {
         eachInvariants<OutOther>();
         return then<void, In ...>(forEach<Out, ValueType>(func));
+    }
+
+    template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
+    Job<void, In ...> serialEach(JobContinuation<void, ValueType> func)
+    {
+        eachInvariants<OutOther>();
+        return then<void, In ...>(serialForEach<Out, ValueType>(func));
     }
 
     /**
