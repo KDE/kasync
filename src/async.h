@@ -288,6 +288,14 @@ KASYNC_EXPORT Job<void, List> forEach(JobContinuation<void, typename List::value
 template<typename List, typename ValueType = typename List::value_type>
 KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
+/**
+ * @relates Job
+ *
+ * Serial Async foreach loop.
+ *
+ * This will execute a job for every value in the list sequentially.
+ * Errors while not stop processing of other jobs but set an error on the wrapper job.
+ */
 template<typename List>
 KASYNC_EXPORT Job<void, List> serialForEach(JobContinuation<void, typename List::value_type>);
 
