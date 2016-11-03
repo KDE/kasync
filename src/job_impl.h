@@ -489,12 +489,27 @@ template<typename List, typename ValueType>
 Job<void, List> forEach(KAsync::Job<void, ValueType> job)
 {
     auto cont = [job] (const List &values) mutable {
+            auto error = QSharedPointer<KAsync::Error>::create();
             QList<KAsync::Future<void>> list;
             for (const auto &v : values) {
-                auto future = job.exec(v);
+                auto future = job
+                    .template syncThen<void>([error] (const KAsync::Error &e) {
+                        if (e && !*error) {
+                            //TODO ideally we would aggregate the errors instead of just using the first one
+                            *error = e;
+                        }
+                    })
+                    .exec(v);
                 list << future;
             }
-            return waitForCompletion(list);
+            return waitForCompletion(list)
+                .then<void>([error](KAsync::Future<void> &future) {
+                    if (*error) {
+                        future.setError(*error);
+                    } else {
+                        future.setFinished();
+                    }
+                });
         };
     return Job<void, List>(Private::ExecutorBasePtr(
         new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
@@ -505,16 +520,28 @@ template<typename List, typename ValueType>
 Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
 {
     auto cont = [job] (const List &values) mutable {
+            auto error = QSharedPointer<KAsync::Error>::create();
             auto serialJob = KAsync::null<void>();
             for (const auto &value : values) {
-                serialJob = serialJob.then<void>([value, job](KAsync::Future<void> &future) {
-                    job.template syncThen<void>([&future] {
+                serialJob = serialJob.then<void>([value, job, error](KAsync::Future<void> &future) {
+                    job.template syncThen<void>([&future, error] (const KAsync::Error &e) {
+                        if (e && !*error) {
+                            //TODO ideally we would aggregate the errors instead of just using the first one
+                            *error = e;
+                        }
                         future.setFinished();
                     })
                     .exec(value);
                 });
             }
-            return serialJob;
+            return serialJob
+                .then<void>([error](KAsync::Future<void> &future) {
+                    if (*error) {
+                        future.setError(*error);
+                    } else {
+                        future.setFinished();
+                    }
+                });
         };
     return Job<void, List>(Private::ExecutorBasePtr(
         new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
