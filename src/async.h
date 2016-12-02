@@ -477,7 +477,10 @@ public:
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::Always);
     }
 
-    ///Shorthand for a job that that returns another job from its contiuation and that receives the error
+    /*
+     * Shorthand for a job that that returns another job from its contiuation
+     * and that receives the error.
+     */
     template<typename OutOther, typename ... InOther>
     Job<OutOther, In ...> then(JobErrorContinuation<OutOther, InOther ...> func) const
     {
@@ -491,7 +494,10 @@ public:
         return syncThenImpl<OutOther, InOther ...>(func, Private::ExecutionFlag::GoodCase);
     }
 
-    ///Shorthand for a synchronous job (a job that does not return another job) that receives the error.
+    /**
+     * Shorthand for a synchronous job (a job that does not return another job)
+     * that receives the error.
+     */
     template<typename OutOther, typename ... InOther>
     Job<OutOther, In ...> syncThen(const SyncErrorContinuation<OutOther, InOther ...> &func) const
     {
@@ -501,7 +507,10 @@ public:
     ///Shorthand for a job that receives the error only
     Job<Out, In ...> onError(const SyncErrorContinuation<void> &errorFunc) const;
 
-    ///Shorthand for a forEach loop that automatically uses the return type of this job to deduce the type exepected
+    /**
+     * Shorthand for a forEach loop that automatically uses the return type of
+     * this job to deduce the type exepected.
+     */
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
     Job<void, In ...> each(JobContinuation<void, ValueType> func) const
     {
@@ -509,7 +518,10 @@ public:
         return then<void, In ...>(forEach<Out, ValueType>(func));
     }
 
-    ///Shorthand for a serialForEach loop that automatically uses the return type of this job to deduce the type exepected
+    /**
+     * Shorthand for a serialForEach loop that automatically uses the return type
+     * of this job to deduce the type exepected.
+     */
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
     Job<void, In ...> serialEach(JobContinuation<void, ValueType> func) const
     {
@@ -533,7 +545,8 @@ public:
      * Adds an unnamed value to the context.
      * The context is guaranteed to persist until the jobs execution has finished.
      *
-     * Useful for setting smart pointer to manage lifetime of objects required during the execution of the job.
+     * Useful for setting smart pointer to manage lifetime of objects required
+     * during the execution of the job.
      */
     template<typename T>
     Job<Out, In ...> &addToContext(const T &value)
@@ -583,12 +596,15 @@ private:
     explicit Job(Private::ExecutorBasePtr executor);
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &helper, Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
+    Job<OutOther, In ...> thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &helper,
+                                   Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
+    Job<OutOther, In ...> syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, 
+                                       Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always) const;
+    Job<OutOther, In ...> syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func,
+                                       Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always) const;
 
     template<typename InOther, typename ... InOtherTail>
     void thenInvariants() const;

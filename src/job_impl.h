@@ -33,7 +33,8 @@ template<typename Out, typename ... In>
 class ThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
 {
 public:
-    ThenExecutor(ContinuationHelper<Out, In ...> workerHelper, const ExecutorBasePtr &parent = {}, ExecutionFlag executionFlag = ExecutionFlag::GoodCase)
+    ThenExecutor(ContinuationHelper<Out, In ...> workerHelper, const ExecutorBasePtr &parent = {},
+                 ExecutionFlag executionFlag = ExecutionFlag::GoodCase)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
         , mContinuationHelper(workerHelper)
     {
@@ -64,10 +65,12 @@ public:
 
 private:
 
-    void executeJobAndApply(In ... input, const JobContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    void executeJobAndApply(In ... input, const JobContinuation<Out, In ...> &func,
+                            Future<Out> &future, std::false_type)
     {
         func(input ...)
-            .template then<void, Out>([&future](const KAsync::Error &error,  const Out &v, KAsync::Future<void> &f) {
+            .template then<void, Out>([&future](const KAsync::Error &error, const Out &v,
+                                                KAsync::Future<void> &f) {
                 if (error) {
                     future.setError(error);
                 } else {
@@ -77,7 +80,8 @@ private:
             }).exec();
     }
 
-    void executeJobAndApply(In ... input, const JobContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    void executeJobAndApply(In ... input, const JobContinuation<Out, In ...> &func,
+                            Future<Out> &future, std::true_type)
     {
         func(input ...)
             .template then<void>([&future](const KAsync::Error &error, KAsync::Future<void> &f) {
@@ -90,10 +94,12 @@ private:
             }).exec();
     }
 
-    void executeJobAndApply(const Error &error, In ... input, const JobErrorContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    void executeJobAndApply(const Error &error, In ... input, const JobErrorContinuation<Out, In ...> &func,
+                            Future<Out> &future, std::false_type)
     {
         func(error, input ...)
-            .template then<void, Out>([&future](const KAsync::Error &error,  const Out &v, KAsync::Future<void> &f) {
+            .template then<void, Out>([&future](const KAsync::Error &error, const Out &v,
+                                                KAsync::Future<void> &f) {
                 if (error) {
                     future.setError(error);
                 } else {
@@ -103,7 +109,8 @@ private:
             }).exec();
     }
 
-    void executeJobAndApply(const Error &error, In ... input, const JobErrorContinuation<Out, In ...> &func, Future<Out> &future, std::true_type)
+    void executeJobAndApply(const Error &error, In ... input, const JobErrorContinuation<Out, In ...> &func,
+                            Future<Out> &future, std::true_type)
     {
         func(error, input ...)
             .template then<void>([&future](const KAsync::Error &error, KAsync::Future<void> &f) {
@@ -125,22 +132,26 @@ class SyncThenExecutor: public Executor<typename detail::prevOut<In ...>::type, 
 {
 private:
 
-    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func,
+                      Future<Out> &future, std::false_type)
     {
         future.setValue(func(input...));
     }
 
-    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &, std::true_type)
+    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func,
+                      Future<Out> &, std::true_type)
     {
         func(input...);
     }
 
-    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
+    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func,
+                      Future<Out> &future, std::false_type)
     {
         future.setValue(func(error, input...));
     }
 
-    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &, std::true_type)
+    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func,
+                      Future<Out> &, std::true_type)
     {
         func(error, input...);
     }
@@ -149,14 +160,18 @@ private:
     const SyncErrorContinuation<Out, In ...> mErrorContinuation;
 
 public:
-    SyncThenExecutor(const SyncContinuation<Out, In ...> &worker, const ExecutorBasePtr &parent = ExecutorBasePtr(), ExecutionFlag executionFlag = Always)
+    SyncThenExecutor(const SyncContinuation<Out, In ...> &worker,
+                     const ExecutorBasePtr &parent = ExecutorBasePtr(),
+                     ExecutionFlag executionFlag = Always)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
         , mContinuation(worker)
     {
 
     }
 
-    SyncThenExecutor(const SyncErrorContinuation<Out, In ...> &worker, const ExecutorBasePtr &parent = ExecutorBasePtr(), ExecutionFlag executionFlag = Always)
+    SyncThenExecutor(const SyncErrorContinuation<Out, In ...> &worker,
+                     const ExecutorBasePtr &parent = ExecutorBasePtr(),
+                     ExecutionFlag executionFlag = Always)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
         , mErrorContinuation(worker)
     {
@@ -174,12 +189,15 @@ public:
         KAsync::Future<Out> *future = execution->result<Out>();
 
         if (SyncThenExecutor<Out, In ...>::mContinuation) {
-            callAndApply(prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mContinuation, *future, std::is_void<Out>());
+            callAndApply(prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mContinuation,
+                         *future, std::is_void<Out>());
         }
 
         if (SyncThenExecutor<Out, In ...>::mErrorContinuation) {
             assert(prevFuture);
-            callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(), prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mErrorContinuation, *future, std::is_void<Out>());
+            callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
+                         prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mErrorContinuation,
+                         *future, std::is_void<Out>());
         }
         future->setFinished();
     }
@@ -192,7 +210,9 @@ private:
     const SyncErrorContinuation<void> mContinuation;
 
 public:
-    SyncErrorExecutor(const SyncErrorContinuation<void> &worker, const ExecutorBasePtr &parent = ExecutorBasePtr(), ExecutionFlag executionFlag = Always)
+    SyncErrorExecutor(const SyncErrorContinuation<void> &worker,
+                      const ExecutorBasePtr &parent = ExecutorBasePtr(),
+                      ExecutionFlag executionFlag = Always)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
         , mContinuation(worker)
     {
@@ -221,7 +241,8 @@ KAsync::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) con
 }
 
 template<typename PrevOut, typename Out, typename ... In>
-void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> &prevFuture, const ExecutionPtr &execution)
+void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> &prevFuture,
+                                                  const ExecutionPtr &execution)
 {
     if (prevFuture.hasError() && executionFlag == ExecutionFlag::GoodCase) {
         //Propagate the error to the outer Future
@@ -305,7 +326,8 @@ Job<Out, In ...>::operator Job<void>()
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &workHelper, Private::ExecutionFlag execFlag) const
+Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &workHelper,
+                                                 Private::ExecutionFlag execFlag) const
 {
     thenInvariants<InOther ...>();
     return Job<OutOther, In ...>(Private::ExecutorBasePtr(
@@ -324,7 +346,8 @@ Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &j
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag) const
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func,
+                                                     Private::ExecutionFlag execFlag) const
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
@@ -334,7 +357,8 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutO
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func, Private::ExecutionFlag execFlag) const
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func,
+                                                     Private::ExecutionFlag execFlag) const
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
@@ -468,15 +492,17 @@ static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &f
                 }
                 // FIXME bind lifetime all watcher to future (repectively the main job
                 auto watcher = QSharedPointer<KAsync::FutureWatcher<void>>::create();
-                QObject::connect(watcher.data(), &KAsync::FutureWatcher<void>::futureReady, [count, total, &future, context]() {
-                    *count += 1;
-                    if (*count == total) {
-                        delete context;
-                        future.setFinished();
-                    }
-                });
+                QObject::connect(watcher.data(), &KAsync::FutureWatcher<void>::futureReady,
+                                 [count, total, &future, context]() {
+                                    *count += 1;
+                                    if (*count == total) {
+                                        delete context;
+                                        future.setFinished();
+                                    }
+                                });
                 watcher->setFuture(subFuture);
-                context->setProperty(QString::fromLatin1("future%1").arg(i).toLatin1().data(), QVariant::fromValue(watcher));
+                context->setProperty(QString::fromLatin1("future%1").arg(i).toLatin1().data(),
+                                     QVariant::fromValue(watcher));
             }
             if (*count == total) {
                 delete context;
