@@ -453,7 +453,7 @@ Job<Out, In ...> syncStart(const SyncContinuation<Out, In ...> &func)
         new Private::SyncThenExecutor<Out, In ...>(func)));
 }
 
-static KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
+static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
 {
     auto context = new QObject;
     return start<void>([futures, context](KAsync::Future<void> &future) {
