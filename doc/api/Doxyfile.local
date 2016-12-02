@@ -1,3 +1,4 @@
+PROJECT_NAME           = KASync
 BUILTIN_STL_SUPPORT    = YES
 EXTRACT_ALL            = NO
 EXTRACT_PRIVATE        = NO
@@ -5,5 +6,6 @@ HIDE_UNDOC_CLASSES     = YES
 INLINE_INFO            = NO
 SORT_MEMBER_DOCS       = YES
 FILE_PATTERNS          = *.h
+RECURSIVE              = YES
 PREDEFINED             = ONLY_DOXYGEN \
                          KASYNC_EXPORT
