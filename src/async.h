@@ -228,10 +228,33 @@ private:
  */
 template<typename Out, typename ... In>
 KASYNC_EXPORT Job<Out, In ...> start(const HandleContinuation<Out, In ...> &func);
+/**
+ * @relates Job
+ *
+ * Start an asynchronous job sequence.
+ *
+ * @see start
+ *
+ * @param func A continuation to be executed.
+ */
 template<typename Out, typename ... In>
 KASYNC_EXPORT Job<Out, In ...> start(const JobContinuation<Out, In ...> &func);
+/**
+ * @relates Job
+ *
+ * Start an asynchronous job sequence.
+ *
+ * @see start
+ *
+ * @param func A synchronous continuation (doesn't return a job) to be executed.
+ */
 template<typename Out, typename ... In>
 KASYNC_EXPORT Job<Out, In ...> syncStart(const SyncContinuation<Out, In ...> &func);
+
+enum ControlFlowFlag {
+    Break,
+    Continue
+};
 
 /**
  * @relates Job
@@ -240,12 +263,19 @@ KASYNC_EXPORT Job<Out, In ...> syncStart(const SyncContinuation<Out, In ...> &fu
  *
  * Loop continues while body returns ControlFlowFlag::Continue.
  */
-enum ControlFlowFlag {
-    Break,
-    Continue
-};
-KASYNC_EXPORT Job<void> doWhile(JobContinuation<ControlFlowFlag> body);
 KASYNC_EXPORT Job<void> doWhile(Job<ControlFlowFlag> body);
+
+/**
+ * @relates Job
+ *
+ * Async while loop.
+ *
+ * Shorthand that takes a continuation.
+ *
+ * @see doWhile
+ */
+KASYNC_EXPORT Job<void> doWhile(JobContinuation<ControlFlowFlag> body);
+
 
 
 /**
@@ -282,11 +312,21 @@ KASYNC_EXPORT Job<Out> value(Out);
  * This will execute a job for every value in the list.
  * Errors while not stop processing of other jobs but set an error on the wrapper job.
  */
+template<typename List, typename ValueType = typename List::value_type>
+KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
+
+/**
+ * @relates Job
+ *
+ * Async foreach loop.
+ *
+ * Shorthand that takes a continuation.
+ *
+ * @see serialForEach
+ */
 template<typename List>
 KASYNC_EXPORT Job<void, List> forEach(JobContinuation<void, typename List::value_type>);
 
-template<typename List, typename ValueType = typename List::value_type>
-KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
 /**
  * @relates Job
@@ -296,11 +336,21 @@ KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
  * This will execute a job for every value in the list sequentially.
  * Errors while not stop processing of other jobs but set an error on the wrapper job.
  */
+template<typename List, typename ValueType = typename List::value_type>
+KASYNC_EXPORT Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
+
+/**
+ * @relates Job
+ *
+ * Serial Async foreach loop.
+ *
+ * Shorthand that takes a continuation.
+ *
+ * @see serialForEach
+ */
 template<typename List>
 KASYNC_EXPORT Job<void, List> serialForEach(JobContinuation<void, typename List::value_type>);
 
-template<typename List, typename ValueType = typename List::value_type>
-KASYNC_EXPORT Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
 
 /**
  * @relates Job
@@ -435,12 +485,14 @@ public:
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::Always);
     }
 
+    ///Shorthand for a synchronous job (a job that does not return another job).
     template<typename OutOther, typename ... InOther>
     Job<OutOther, In ...> syncThen(const SyncContinuation<OutOther, InOther ...> &func) const
     {
         return syncThenImpl<OutOther, InOther ...>(func, Private::ExecutionFlag::GoodCase);
     }
 
+    ///Shorthand for a synchronous job (a job that does not return another job) that receives the error.
     template<typename OutOther, typename ... InOther>
     Job<OutOther, In ...> syncThen(const SyncErrorContinuation<OutOther, InOther ...> &func) const
     {
@@ -450,7 +502,7 @@ public:
     ///Shorthand for a job that receives the error only
     Job<Out, In ...> onError(const SyncErrorContinuation<void> &errorFunc) const;
 
-    ///Shorthand that automatically uses the return type of this job to deduce the type exepected
+    ///Shorthand for a forEach loop that automatically uses the return type of this job to deduce the type exepected
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
     Job<void, In ...> each(JobContinuation<void, ValueType> func) const
     {
@@ -458,6 +510,7 @@ public:
         return then<void, In ...>(forEach<Out, ValueType>(func));
     }
 
+    ///Shorthand for a serialForEach loop that automatically uses the return type of this job to deduce the type exepected
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
     Job<void, In ...> serialEach(JobContinuation<void, ValueType> func) const
     {
