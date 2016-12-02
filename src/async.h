@@ -63,7 +63,6 @@
  * * Future: Representation of the result that is being calculated
  *
  *
- * TODO: Composed progress reporting
  * TODO: Possibility to abort a job through future (perhaps optional?)
  * TODO: Support for timeout, specified during exec call, after which the error
  *       handler gets called with a defined errorCode.
