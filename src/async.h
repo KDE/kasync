@@ -182,7 +182,7 @@ protected:
     }
 
     QString mExecutorName;
-    QList<QVariant> mContext;
+    QVector<QVariant> mContext;
 };
 
 enum ExecutionFlag {
