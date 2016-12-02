@@ -1,5 +1,6 @@
 /*
  * Copyright 2014 - 2015 Daniel Vrátil <dvratil@redhat.com>
+ * Copyright 2016  Daniel Vrátil <dvratil@kde.org>
  * Copyright 2016  Christian Mollekopf <mollekopf@kolabsystems.com>
  *
  * This library is free software; you can redistribute it and/or
