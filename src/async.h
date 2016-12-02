@@ -168,10 +168,10 @@ protected:
 
     ExecutorBasePtr mPrev;
 
-    void prefix(ExecutorBasePtr e)
+    void prepend(const ExecutorBasePtr &e)
     {
         if (mPrev) {
-            mPrev->prefix(e);
+            mPrev->prepend(e);
         } else {
             mPrev = e;
         }
@@ -210,7 +210,7 @@ protected:
     const ExecutionFlag executionFlag;
 
 private:
-    void runExecution(const KAsync::Future<PrevOut> &prevFuture, ExecutionPtr execution);
+    void runExecution(const KAsync::Future<PrevOut> &prevFuture, const ExecutionPtr &execution);
 };
 
 } // namespace Private
@@ -244,8 +244,8 @@ enum ControlFlowFlag {
     Break,
     Continue
 };
-KASYNC_EXPORT Job<void> dowhile(JobContinuation<ControlFlowFlag> body);
-KASYNC_EXPORT Job<void> dowhile(Job<ControlFlowFlag> body);
+KASYNC_EXPORT Job<void> doWhile(JobContinuation<ControlFlowFlag> body);
+KASYNC_EXPORT Job<void> doWhile(Job<ControlFlowFlag> body);
 
 
 /**

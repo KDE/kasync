@@ -221,7 +221,7 @@ KAsync::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) con
 }
 
 template<typename PrevOut, typename Out, typename ... In>
-void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> &prevFuture, ExecutionPtr execution) {
+void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> &prevFuture, const ExecutionPtr &execution) {
     if (prevFuture.hasError() && executionFlag == ExecutionFlag::GoodCase) {
         //Propagate the error to the outer Future
         Q_ASSERT(prevFuture.errors().size() == 1);
@@ -317,7 +317,7 @@ Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &j
 {
     thenInvariants<InOther ...>();
     auto executor = job.mExecutor;
-    executor->prefix(mExecutor);
+    executor->prepend(mExecutor);
     return Job<OutOther, In ...>(executor);
 }
 

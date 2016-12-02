@@ -76,21 +76,21 @@ JobBase::~JobBase()
 }
 
 
-Job<void> KAsync::dowhile(Job<ControlFlowFlag> body)
+Job<void> KAsync::doWhile(Job<ControlFlowFlag> body)
 {
     return body.then<void, ControlFlowFlag>([body](const KAsync::Error &error, ControlFlowFlag flag) {
         if (error) {
             return KAsync::error(error);
         } else if (flag == ControlFlowFlag::Continue) {
-            return dowhile(body);
+            return doWhile(body);
         }
         return KAsync::null();
     });
 }
 
-Job<void> KAsync::dowhile(JobContinuation<ControlFlowFlag> body)
+Job<void> KAsync::doWhile(JobContinuation<ControlFlowFlag> body)
 {
-    return dowhile(KAsync::start<ControlFlowFlag>([body] {
+    return doWhile(KAsync::start<ControlFlowFlag>([body] {
         qDebug() << "Calling wrapper";
         return body();
     }));

@@ -480,7 +480,7 @@ void AsyncTest::testContext()
 void AsyncTest::testDoWhile()
 {
     int i = 0;
-    auto future = KAsync::dowhile([&i]() {
+    auto future = KAsync::doWhile([&i]() {
         i++;
         if (i < 5) {
             return KAsync::value(KAsync::Continue);
