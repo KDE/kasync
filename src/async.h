@@ -197,8 +197,8 @@ class Executor : public ExecutorBase
 protected:
 
     Executor(const Private::ExecutorBasePtr &parent, ExecutionFlag executionFlag)
-        : ExecutorBase(parent),
-        executionFlag(executionFlag)
+        : ExecutorBase(parent)
+        , executionFlag(executionFlag)
     {}
 
     virtual ~Executor() {}
