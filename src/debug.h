@@ -39,7 +39,7 @@ KASYNC_EXPORT QString demangleName(const char *name);
 
 namespace Private
 {
-class Execution;
+struct Execution;
 }
 
 class KASYNC_EXPORT Tracer

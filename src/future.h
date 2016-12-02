@@ -38,7 +38,7 @@ template<typename T>
 class FutureWatcher;
 
 namespace Private {
-class Execution;
+struct Execution;
 class ExecutorBase;
 
 typedef QSharedPointer<Execution> ExecutionPtr;
