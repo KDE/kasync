@@ -30,9 +30,6 @@ target_link_libraries(KF5Async
     PUBLIC
         Qt5::Core
 )
-if (WITH_KJOB)
-    target_link_libraries(KF5Async PUBLIC KF5::CoreAddons)
-endif ()
 
 
 set_target_properties(KF5Async PROPERTIES

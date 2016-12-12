@@ -70,8 +70,6 @@
  */
 
 
-class KJob;
-
 namespace KAsync {
 
 template<typename PrevOut, typename Out, typename ... In>
