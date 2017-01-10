@@ -76,7 +76,7 @@ private:
 
 class KASYNC_EXPORT FutureBase
 {
-    friend class KAsync::Private::Execution;
+    friend struct KAsync::Private::Execution;
     friend class FutureWatcherBase;
 
 public:
