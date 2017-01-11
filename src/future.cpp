@@ -20,6 +20,12 @@
 
 using namespace KAsync;
 
+QDebug &operator<<(QDebug &dbg, const Error &error)
+{
+    dbg << "Error: " << error.errorCode << "Msg: " << error.errorMessage;
+    return dbg;
+}
+
 FutureBase::PrivateBase::PrivateBase(const Private::ExecutionPtr &execution)
     : finished(false)
     , mExecution(execution)

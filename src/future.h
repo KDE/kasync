@@ -493,4 +493,6 @@ private:
 
 } // namespace Async
 
+QDebug& KASYNC_EXPORT operator<<(QDebug &dbg, const KAsync::Error &error);
+
 #endif // FUTURE_H
