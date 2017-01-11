@@ -65,6 +65,8 @@ private Q_SLOTS:
     void testVoidNestedJob();
     void testAsyncEach();
     void testAsyncSerialEach();
+    void noTemplateArguments();
+    void testValueJob();
 
     void benchmarkSyncThenExecutor();
     void benchmarkFutureThenExecutor();
@@ -681,6 +683,108 @@ void AsyncTest::benchmarkThenExecutor()
 
     QBENCHMARK {
        job.exec();
+    }
+}
+
+//Ensure we don't have to define the template arguments
+void AsyncTest::noTemplateArguments()
+{
+    double input = 42;
+    auto job1 = KAsync::start<int, double>(
+        [](double i)  {
+            return KAsync::value<int>(i);
+        });
+
+    //Async continuation
+    {
+        auto job2 = job1.then([](int value) {
+            return KAsync::value(QString::number(value));
+        });
+        static_assert(std::is_same<decltype(job2), KAsync::Job<QString, double>>::value, "Not the same type");
+        auto future = job2.exec(input);
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), QString::number(42));
+    }
+
+    //void async continuation
+    {
+        auto job2 = job1.then([](int) {
+            return KAsync::null<void>();
+        });
+        // using foo = decltype(job2)::foo;
+        static_assert(std::is_same<decltype(job2), KAsync::Job<void, double>>::value, "Not the same type");
+        auto future = job2.exec(input);
+        QVERIFY(future.isFinished());
+        // QCOMPARE(future.value(), QString::number(42));
+    }
+
+    //Job continuation
+    {
+        int value = input;
+        auto job2 = job1.then(KAsync::value(QString::number(value)));
+        static_assert(std::is_same<decltype(job2), KAsync::Job<QString, double>>::value, "Not the same type");
+        auto future = job2.exec(input);
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), QString::number(42));
+    }
+
+    //Sync continuation
+    {
+        auto job2 = job1.then([](int value) {
+            return QString::number(value);
+        });
+        static_assert(std::is_same<decltype(job2), KAsync::Job<QString, double>>::value, "Not the same type");
+        auto future = job2.exec(input);
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), QString::number(42));
+    }
+
+    //void sync continuation
+    {
+        auto job2 = job1.then([](int) {
+        });
+        static_assert(std::is_same<decltype(job2), KAsync::Job<void, double>>::value, "Not the same type");
+        auto future = job2.exec(input);
+        QVERIFY(future.isFinished());
+    }
+
+    //The following examples should result in a compile time error
+    {
+    //Should fail due to no argument
+    // auto job3 = job1.then([]() {
+    //         return KAsync::value(QString::number(42));
+    // });
+
+    //Should fail due to wrong argument
+    // auto job3 = job1.then([](QByteArray foo) {
+    //         eturn KAsync::value<QString>(QString::number(42));
+    // });
+    }
+}
+
+void AsyncTest::testValueJob()
+{
+    QList<QByteArray> list;
+    list << "foo";
+    list << "foo2";
+    auto job1 = KAsync::null();
+    {
+        auto job = job1.then(KAsync::value(list));
+        static_assert(std::is_same<decltype(job), KAsync::Job<QList<QByteArray>>>::value, "Not the same type");
+        auto future = job.exec();
+        QCOMPARE(future.value(), list);
+    }
+    {
+        auto job = job1.then([&] { return KAsync::value(list); });
+        static_assert(std::is_same<decltype(job), KAsync::Job<QList<QByteArray>>>::value, "Not the same type");
+        auto future = job.exec();
+        QCOMPARE(future.value(), list);
+    }
+    {
+        auto job = job1.then([&] { return list; });
+        static_assert(std::is_same<decltype(job), KAsync::Job<QList<QByteArray>>>::value, "Not the same type");
+        auto future = job.exec();
+        QCOMPARE(future.value(), list);
     }
 }
 

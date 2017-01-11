@@ -520,7 +520,7 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job)
             QList<KAsync::Future<void>> list;
             for (const auto &v : values) {
                 auto future = job
-                    .template syncThen<void>([error] (const KAsync::Error &e) {
+                    .template then<void>([error] (const KAsync::Error &e) {
                         if (e && !*error) {
                             //TODO ideally we would aggregate the errors instead of just using the first one
                             *error = e;
@@ -551,7 +551,7 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
             auto serialJob = KAsync::null<void>();
             for (const auto &value : values) {
                 serialJob = serialJob.then<void>([value, job, error](KAsync::Future<void> &future) {
-                    job.template syncThen<void>([&future, error] (const KAsync::Error &e) {
+                    job.template then<void>([&future, error] (const KAsync::Error &e) {
                         if (e && !*error) {
                             //TODO ideally we would aggregate the errors instead of just using the first one
                             *error = e;

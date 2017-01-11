@@ -451,15 +451,103 @@ class Job : public JobBase
     //@endcond
 
 public:
-    /// A continuation
+    typedef Out OutType;
+
+    ///A continuation
     template<typename OutOther, typename ... InOther>
     Job<OutOther, In ...> then(const Job<OutOther, InOther ...> &job) const;
 
-    ///Shorthand for a job that returns another job from it's continuation
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(JobContinuation<OutOther, InOther ...> func) const
+    ///Shorthands for a job that returns another job from it's continuation
+    //
+    //OutOther and InOther are only there fore backwards compatibility, but are otherwise ignored.
+    //It should never be neccessary to specify any template arguments, as they are automatically deduced from the provided argument.
+    //
+    //We currently have to write a then overload for:
+    //* One argument in the continuation
+    //* No argument in the continuation
+    //* One argument + error in the continuation
+    //* No argument + error in the continuation
+    //This is due to how we extract the return type with "decltype(func(std::declval<Out>()))".
+    //Ideally we could conflate this into at least fewer overloads, but I didn't manage so far and this at least works as expected.
+
+    ///Continuation returning job: [] (Arg) -> KAsync::Job<...> { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<Out>()))>::value,
+                                                       Job<typename decltype(func(std::declval<Out>()))::OutType, In...>
+                                                      >::type
     {
-        return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::GoodCase);
+        using ResultJob = decltype(func(std::declval<Out>())); //Job<QString, int>
+        return thenImpl<typename ResultJob::OutType, Out>({func}, Private::ExecutionFlag::GoodCase);
+    }
+
+    ///Void continuation with job: [] () -> KAsync::Job<...> { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func())>::value,
+                                                       Job<typename decltype(func())::OutType, In...>
+                                                      >::type
+    {
+        using ResultJob = decltype(func()); //Job<QString, void>
+        return thenImpl<typename ResultJob::OutType>({func}, Private::ExecutionFlag::GoodCase);
+    }
+
+    ///Error continuation returning job: [] (KAsync::Error, Arg) -> KAsync::Job<...> { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(KAsync::Error{}, std::declval<Out>()))>::value,
+                                                       Job<typename decltype(func(KAsync::Error{}, std::declval<Out>()))::OutType, In...>
+                                                      >::type
+    {
+        using ResultJob = decltype(func(KAsync::Error{}, std::declval<Out>())); //Job<QString, int>
+        return thenImpl<typename ResultJob::OutType, Out>({func}, Private::ExecutionFlag::Always);
+    }
+
+    ///Error void continuation returning job: [] (KAsync::Error) -> KAsync::Job<...> { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(KAsync::Error{}))>::value,
+                                                       Job<typename decltype(func(KAsync::Error{}))::OutType, In...>
+                                                      >::type
+    {
+        using ResultJob = decltype(func(KAsync::Error{}));
+        return thenImpl<typename ResultJob::OutType>({func}, Private::ExecutionFlag::Always);
+    }
+
+    ///Sync continuation: [] (Arg) -> void { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<Out>()))>::value,
+                                                       Job<decltype(func(std::declval<Out>())), In...>
+                                                      >::type
+    {
+        using ResultType = decltype(func(std::declval<Out>())); //QString
+        return syncThenImpl<ResultType, Out>({func}, Private::ExecutionFlag::GoodCase);
+    }
+
+    ///Sync void continuation: [] () -> void { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func())>::value,
+                                                       Job<decltype(func()), In...>
+                                                      >::type
+    {
+        using ResultType = decltype(func()); //QString
+        return syncThenImpl<ResultType>({func}, Private::ExecutionFlag::GoodCase);
+    }
+
+    ///Sync error continuation: [] (KAsync::Error, Arg) -> void { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(KAsync::Error{}, std::declval<Out>()))>::value,
+                                                       Job<decltype(func(KAsync::Error{}, std::declval<Out>())),In...>
+                                                      >::type
+    {
+        using ResultType = decltype(func(KAsync::Error{}, std::declval<Out>())); //QString
+        return syncThenImpl<ResultType, Out>({func}, Private::ExecutionFlag::Always);
+    }
+
+    ///Sync void error continuation: [] (KAsync::Error) -> void { ... }
+    template<typename OutOther = void, typename ... InOther, typename F>
+    auto then(F func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(KAsync::Error{}))>::value,
+                                                       Job<decltype(func(KAsync::Error{})), In...>
+                                                      >::type
+    {
+        using ResultType = decltype(func(KAsync::Error{}));
+        return syncThenImpl<ResultType>({func}, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that receives the error and a handle
@@ -474,33 +562,6 @@ public:
     Job<OutOther, In ...> then(HandleErrorContinuation<OutOther, InOther ...> func) const
     {
         return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::Always);
-    }
-
-    /*
-     * Shorthand for a job that that returns another job from its contiuation
-     * and that receives the error.
-     */
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(JobErrorContinuation<OutOther, InOther ...> func) const
-    {
-        return thenImpl<OutOther, InOther ...>({func}, Private::ExecutionFlag::Always);
-    }
-
-    ///Shorthand for a synchronous job (a job that does not return another job).
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThen(const SyncContinuation<OutOther, InOther ...> &func) const
-    {
-        return syncThenImpl<OutOther, InOther ...>(func, Private::ExecutionFlag::GoodCase);
-    }
-
-    /**
-     * Shorthand for a synchronous job (a job that does not return another job)
-     * that receives the error.
-     */
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThen(const SyncErrorContinuation<OutOther, InOther ...> &func) const
-    {
-        return syncThenImpl<OutOther, InOther ...>(func, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that receives the error only
