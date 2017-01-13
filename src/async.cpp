@@ -91,7 +91,6 @@ Job<void> KAsync::doWhile(Job<ControlFlowFlag> body)
 Job<void> KAsync::doWhile(JobContinuation<ControlFlowFlag> body)
 {
     return doWhile(KAsync::start<ControlFlowFlag>([body] {
-        qDebug() << "Calling wrapper";
         return body();
     }));
 }
