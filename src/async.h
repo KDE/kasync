@@ -370,6 +370,17 @@ KASYNC_EXPORT Job<Out> error(int errorCode = 1, const QString &errorMessage = QS
  *
  */
 template<typename Out = void>
+KASYNC_EXPORT Job<Out> error(const char *);
+
+/**
+ * @relates Job
+ *
+ * An error job.
+ *
+ * An async error.
+ *
+ */
+template<typename Out = void>
 KASYNC_EXPORT Job<Out> error(const Error &);
 
 //@cond PRIVATE
