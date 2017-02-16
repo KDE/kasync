@@ -332,6 +332,11 @@ void AsyncTest::testSyncPromises()
     }
 }
 
+KAsync::Job<void> doStuff()
+{
+    return KAsync::wait(1);
+};
+
 void AsyncTest::testErrorHandling()
 {
     //Failing job
@@ -350,7 +355,6 @@ void AsyncTest::testErrorHandling()
         bool errorHandlerCalled = false;
         auto future = KAsync::error<int>({1, "error"})
             .then<int, int>([&errorHandlerCalled](const KAsync::Error &error, int) {
-                qWarning() << "Handler called";
                 errorHandlerCalled = true;
                 COMPARERET(error.errorCode, 1, KAsync::error<int>(error));
                 return KAsync::error<int>(error);
@@ -440,7 +444,52 @@ void AsyncTest::testErrorHandling()
 
         QVERIFY(future.isFinished());
         QCOMPARE(future.value(), 1);
-    } 
+    }
+
+    //Ensure an error continuation is called and can clear the error
+    {
+        bool errorHandlerCalled1 = false;
+        auto job = KAsync::null()
+            .then(KAsync::error({1, "error"}));
+
+        auto future = job.then([&](const KAsync::Error &error) {
+                    errorHandlerCalled1 = true;
+                    COMPARERET(error, KAsync::Error(1, "error"), KAsync::null());
+                    return KAsync::null();
+                })
+        .exec();
+        QVERIFY(future.isFinished());
+        QVERIFY(errorHandlerCalled1);
+        QCOMPARE(future.errorCode(), 0);
+    }
+    //Ensure an error continuation is called and can clear the error in a nested job
+    {
+        bool errorHandlerCalled1 = false;
+        bool continuationCalled = false;
+        auto error = KAsync::Error(1, "error");
+        auto job = KAsync::error<void>(error)
+            .then([&] (const KAsync::Error &e){
+                return doStuff()
+                    .then([] {
+                    })
+                    .then([e, &continuationCalled] {
+                        continuationCalled = true;
+                        return KAsync::error(e);
+                    });
+            });
+
+        auto job2 = job.then([&](const KAsync::Error &e) {
+                    errorHandlerCalled1 = true;
+                    COMPARERET(e, error, KAsync::null());
+                    return KAsync::null();
+                });
+        auto future = job2.exec();
+        future.waitForFinished();
+        QVERIFY(future.isFinished());
+        QVERIFY(errorHandlerCalled1);
+        QVERIFY(continuationCalled);
+        QCOMPARE(future.errorCode(), 0);
+    }
 }
 
 void AsyncTest::testContext()
