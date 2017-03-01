@@ -22,7 +22,7 @@ add_library(KAsync ${kasync_SRCS})
 
 generate_export_header(KAsync BASE_NAME kasync)
 
-target_include_directories(KAsync INTERFACE "$<INSTALL_INTERFACE:${KDE_INSTALL_INCLUDEDIR}/Async>")
+target_include_directories(KAsync INTERFACE "$<INSTALL_INTERFACE:${KDE_INSTALL_INCLUDEDIR}/KAsync>")
 target_include_directories(KAsync PUBLIC "$<BUILD_INTERFACE:${KAsync_SOURCE_DIR}/src>")
 
 target_link_libraries(KAsync
@@ -34,7 +34,7 @@ target_link_libraries(KAsync
 set_target_properties(KAsync PROPERTIES
     VERSION ${KASYNC_VERSION_STRING}
     SOVERSION ${KASYNC_SOVERSION}
-    EXPORT_NAME Async
+    EXPORT_NAME KAsync
 )
 
 ecm_generate_pri_file(BASE_NAME KAsync
@@ -51,7 +51,7 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/kasync_export.h
     ${kasync_HEADERS}
     ${kasync_priv_HEADERS}
-    DESTINATION ${KDE_INSTALL_INCLUDEDIR}/Async
+    DESTINATION ${KDE_INSTALL_INCLUDEDIR}/KAsync
     COMPONENT Devel
 )
 
