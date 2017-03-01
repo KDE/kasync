@@ -18,41 +18,40 @@ ecm_generate_headers(kasync_HEADERS
 )
 
 
-add_library(KF5Async ${kasync_SRCS})
-add_library(KF5::Async ALIAS KF5Async)
+add_library(KAsync ${kasync_SRCS})
 
-generate_export_header(KF5Async BASE_NAME kasync)
+generate_export_header(KAsync BASE_NAME kasync)
 
-target_include_directories(KF5Async INTERFACE "$<INSTALL_INTERFACE:${KDE_INSTALL_INCLUDEDIR_KF5}/Async>")
-target_include_directories(KF5Async PUBLIC "$<BUILD_INTERFACE:${KAsync_SOURCE_DIR}/src>")
+target_include_directories(KAsync INTERFACE "$<INSTALL_INTERFACE:${KDE_INSTALL_INCLUDEDIR}/Async>")
+target_include_directories(KAsync PUBLIC "$<BUILD_INTERFACE:${KAsync_SOURCE_DIR}/src>")
 
-target_link_libraries(KF5Async
+target_link_libraries(KAsync
     PUBLIC
         Qt5::Core
 )
 
 
-set_target_properties(KF5Async PROPERTIES
+set_target_properties(KAsync PROPERTIES
     VERSION ${KASYNC_VERSION_STRING}
     SOVERSION ${KASYNC_SOVERSION}
     EXPORT_NAME Async
 )
 
 ecm_generate_pri_file(BASE_NAME KAsync
-    LIB_NAME KF5Async
+    LIB_NAME KAsync
     FILENAME_VAR PRI_FILENAME
 )
 
 install(TARGETS
-    KF5Async
-    EXPORT KF5AsyncTargets ${KF5_INSTALL_TARGETS_DEFAULT_ARGS}
+    KAsync
+    EXPORT KAsyncTargets ${KDE_INSTALL_TARGETS_DEFAULT_ARGS}
 )
 
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/kasync_export.h
     ${kasync_HEADERS}
     ${kasync_priv_HEADERS}
-    DESTINATION ${KDE_INSTALL_INCLUDEDIR_KF5}/Async
+    DESTINATION ${KDE_INSTALL_INCLUDEDIR}/Async
     COMPONENT Devel
 )
 
