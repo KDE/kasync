@@ -214,6 +214,15 @@ private:
 } // namespace Private
 //@endcond
 
+
+template<typename Out, typename ... In>
+Job<Out, In ...> startImpl(const Private::ContinuationHelper<Out, In ...> &);
+
+template<typename Out, typename ... In>
+Job<Out, In ...> syncStartImpl(const SyncContinuation<Out, In ...> &);
+
+
+
 /**
  * @relates Job
  *
@@ -224,30 +233,54 @@ private:
  *
  * @param func A continuation to be executed.
  */
-template<typename Out, typename ... In>
-KASYNC_EXPORT Job<Out, In ...> start(const HandleContinuation<Out, In ...> &func);
-/**
- * @relates Job
- *
- * Start an asynchronous job sequence.
- *
- * @see start
- *
- * @param func A continuation to be executed.
- */
-template<typename Out, typename ... In>
-KASYNC_EXPORT Job<Out, In ...> start(const JobContinuation<Out, In ...> &func);
-/**
- * @relates Job
- *
- * Start an asynchronous job sequence.
- *
- * @see start
- *
- * @param func A synchronous continuation (doesn't return a job) to be executed.
- */
-template<typename Out, typename ... In>
-KASYNC_EXPORT Job<Out, In ...> syncStart(const SyncContinuation<Out, In ...> &func);
+
+///Sync void continuation without job: [] () -> T { ... }
+template<typename Out = void, typename ... In, typename F>
+KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func())>::value,
+                                                       Job<decltype(func()), In...>
+                                                      >::type
+{
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return syncStartImpl<Out, In...>(func);
+}
+
+///Sync continuation without job: [] () -> T { ... }
+template<typename Out = void, typename ... In, typename F>
+KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
+                                                       Job<decltype(func(std::declval<In...>())), In...>
+                                                      >::type
+{
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return syncStartImpl<Out, In...>(func);
+}
+
+///Void continuation with job: [] () -> KAsync::Job<...> { ... }
+template<typename Out = void, typename ... In, typename F>
+KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func())>::value,
+                                                       Job<typename decltype(func())::OutType, In...>
+                                                      >::type
+{
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return startImpl<Out, In...>({func});
+}
+
+///continuation with job: [] () -> KAsync::Job<...> { ... }
+template<typename Out = void, typename ... In, typename F>
+KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
+                                                       Job<typename decltype(func(std::declval<In...>()))::OutType, In...>
+                                                      >::type
+{
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return startImpl<Out, In...>({func});
+}
+
+///Handle continuation: [] (KAsync::Future<T>, ...) { ... }
+template<typename Out = void, typename ... In>
+KASYNC_EXPORT auto start(const HandleContinuation<Out, In ...> &func) -> Job<Out, In ...>
+{
+    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
+    return startImpl<Out, In...>({func});
+}
 
 enum ControlFlowFlag {
     Break,
@@ -450,14 +483,14 @@ class Job : public JobBase
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> startImpl(const Private::ContinuationHelper<OutOther, InOther ...> &);
 
+    template<typename OutOther, typename ... InOther>
+    friend Job<OutOther, InOther ...> syncStartImpl(const SyncContinuation<OutOther, InOther ...> &);
+
     template<typename List, typename ValueType>
     friend Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
     template<typename List, typename ValueType>
     friend Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
-
-    template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> syncStart(const SyncContinuation<OutOther, InOther ...> &func);
 
     //@endcond
 

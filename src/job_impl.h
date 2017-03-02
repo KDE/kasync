@@ -458,19 +458,7 @@ Job<Out, In ...> startImpl(const Private::ContinuationHelper<Out, In ...> &helpe
 }
 
 template<typename Out, typename ... In>
-Job<Out, In ...> start(const HandleContinuation<Out, In ...> &func)
-{
-    return startImpl<Out, In...>({func});
-}
-
-template<typename Out, typename ... In>
-Job<Out, In ...> start(const JobContinuation<Out, In ...> &func)
-{
-    return startImpl<Out, In...>({func});
-}
-
-template<typename Out, typename ... In>
-Job<Out, In ...> syncStart(const SyncContinuation<Out, In ...> &func)
+Job<Out, In ...> syncStartImpl(const SyncContinuation<Out, In ...> &func)
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return Job<Out, In...>(Private::ExecutorBasePtr(

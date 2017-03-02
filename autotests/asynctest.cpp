@@ -56,6 +56,7 @@ public:
     {}
 
 private Q_SLOTS:
+    void testStart2();
     void testSyncPromises();
     void testErrorHandling();
     void testContext();
@@ -166,11 +167,65 @@ private:
     QTimer mTimer;
 };
 
+void AsyncTest::testStart2()
+{
+    {
+        auto future = KAsync::start<int>(
+            []() {
+                return 42;
+            }).exec();
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), 42);
+    }
+    {
+        auto future = KAsync::start<int, int>(
+            [](int i) {
+                return i;
+            }).exec(42);
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), 42);
+    }
+    {
+        bool called = false;
+        auto future = KAsync::start<void>(
+            [&]() {
+                called = true;
+            }).exec();
+        QVERIFY(future.isFinished());
+        QVERIFY(called);
+    }
+    {
+        auto future = KAsync::start<int>(
+            []() {
+                return KAsync::value(42);
+            }).exec();
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), 42);
+    }
+    {
+        auto future = KAsync::start<int, int>(
+            [](int i) {
+                return KAsync::value(i);
+            }).exec(42);
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), 42);
+    }
+    {
+        auto future = KAsync::start<int>(
+            [](KAsync::Future<int> &f) {
+                f.setResult(42);
+            }).exec();
+        QVERIFY(future.isFinished());
+        QCOMPARE(future.value(), 42);
+    }
+
+}
+
 
 void AsyncTest::testSyncPromises()
 {
     {
-        auto future = KAsync::syncStart<int>(
+        auto future = KAsync::start<int>(
             []() {
                 return 42;
             }).exec();
@@ -698,7 +753,7 @@ void AsyncTest::testAsyncSerialEach()
 
 void AsyncTest::benchmarkSyncThenExecutor()
 {
-    auto job = KAsync::syncStart<int>(
+    auto job = KAsync::start<int>(
         []() {
             return 1;
         });
