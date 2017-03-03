@@ -390,7 +390,7 @@ void AsyncTest::testSyncPromises()
 KAsync::Job<void> doStuff()
 {
     return KAsync::wait(1);
-};
+}
 
 void AsyncTest::testErrorHandling()
 {
