@@ -36,7 +36,7 @@ public:
     ThenExecutor(ContinuationHelper<Out, In ...> workerHelper, const ExecutorBasePtr &parent = {},
                  ExecutionFlag executionFlag = ExecutionFlag::GoodCase)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mContinuationHelper(workerHelper)
+        , mContinuationHelper(std::move(workerHelper))
     {
         STORE_EXECUTOR_NAME("ThenExecutor", Out, In ...);
     }
@@ -132,48 +132,48 @@ class SyncThenExecutor: public Executor<typename detail::prevOut<In ...>::type, 
 {
 private:
 
-    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func,
+    void callAndApply(In && ... input, const SyncContinuation<Out, In ...> &func,
                       Future<Out> &future, std::false_type)
     {
-        future.setValue(func(input...));
+        future.setValue(func(std::forward<In>(input) ...));
     }
 
-    void callAndApply(In ... input, const SyncContinuation<Out, In ...> &func,
+    void callAndApply(In && ... input, const SyncContinuation<Out, In ...> &func,
                       Future<Out> &, std::true_type)
     {
-        func(input...);
+        func(std::forward<In>(input) ...);
     }
 
-    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func,
+    void callAndApply(const Error &error, In && ... input, const SyncErrorContinuation<Out, In ...> &func,
                       Future<Out> &future, std::false_type)
     {
-        future.setValue(func(error, input...));
+        future.setValue(func(error, std::forward<In>(input) ...));
     }
 
-    void callAndApply(const Error &error, In ... input, const SyncErrorContinuation<Out, In ...> &func,
+    void callAndApply(const Error &error, In && ... input, const SyncErrorContinuation<Out, In ...> &func,
                       Future<Out> &, std::true_type)
     {
-        func(error, input...);
+        func(error, std::forward<In>(input) ...);
     }
 
     const SyncContinuation<Out, In ...> mContinuation;
     const SyncErrorContinuation<Out, In ...> mErrorContinuation;
 
 public:
-    SyncThenExecutor(const SyncContinuation<Out, In ...> &worker,
+    SyncThenExecutor(SyncContinuation<Out, In ...> worker,
                      const ExecutorBasePtr &parent = ExecutorBasePtr(),
                      ExecutionFlag executionFlag = Always)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mContinuation(worker)
+        , mContinuation(std::move(worker))
     {
 
     }
 
-    SyncThenExecutor(const SyncErrorContinuation<Out, In ...> &worker,
+    SyncThenExecutor(SyncErrorContinuation<Out, In ...> worker,
                      const ExecutorBasePtr &parent = ExecutorBasePtr(),
                      ExecutionFlag executionFlag = Always)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mErrorContinuation(worker)
+        , mErrorContinuation(std::move(worker))
     {
 
     }
@@ -210,11 +210,11 @@ private:
     const SyncErrorContinuation<void> mContinuation;
 
 public:
-    SyncErrorExecutor(const SyncErrorContinuation<void> &worker,
+    SyncErrorExecutor(SyncErrorContinuation<void> worker,
                       const ExecutorBasePtr &parent = ExecutorBasePtr(),
                       ExecutionFlag executionFlag = Always)
         : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mContinuation(worker)
+        , mContinuation(std::move(worker))
     {
 
     }
@@ -326,12 +326,12 @@ Job<Out, In ...>::operator typename std::conditional<std::is_void<OutType>::valu
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &workHelper,
+Job<OutOther, In ...> Job<Out, In ...>::thenImpl(Private::ContinuationHelper<OutOther, InOther ...> workHelper,
                                                  Private::ExecutionFlag execFlag) const
 {
     thenInvariants<InOther ...>();
     return Job<OutOther, In ...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<OutOther, InOther ...>(workHelper, mExecutor, execFlag)));
+        new Private::ThenExecutor<OutOther, InOther ...>(std::move(workHelper), mExecutor, execFlag)));
 }
 
 template<typename Out, typename ... In>
@@ -346,24 +346,24 @@ Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &j
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func,
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncContinuation<OutOther, InOther ...> func,
                                                      Private::ExecutionFlag execFlag) const
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
     return Job<OutOther, In...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<OutOther, InOther ...>(func, mExecutor, execFlag)));
+        new Private::SyncThenExecutor<OutOther, InOther ...>(std::move(func), mExecutor, execFlag)));
 }
 
 template<typename Out, typename ... In>
 template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func,
+Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncErrorContinuation<OutOther, InOther ...> func,
                                                      Private::ExecutionFlag execFlag) const
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
     return Job<OutOther, In...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<OutOther, InOther ...>(func, mExecutor, execFlag)));
+        new Private::SyncThenExecutor<OutOther, InOther ...>(std::move(func), mExecutor, execFlag)));
 }
 
 template<typename Out, typename ... In>
@@ -415,8 +415,8 @@ Job<Out, In ...>::Job(Private::ExecutorBasePtr executor)
 {}
 
 template<typename Out, typename ... In>
-Job<Out, In ...>::Job(const JobContinuation<Out, In ...> &func)
-    : JobBase(new Private::ThenExecutor<Out, In ...>({func}, {}))
+Job<Out, In ...>::Job(JobContinuation<Out, In ...> func)
+    : JobBase(new Private::ThenExecutor<Out, In ...>(std::move(func), {}))
 {
     qWarning() << "Creating job job";
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
@@ -450,19 +450,19 @@ Job<Out, In ...>::thenInvariants() const
 
 
 template<typename Out, typename ... In>
-Job<Out, In ...> startImpl(const Private::ContinuationHelper<Out, In ...> &helper)
+Job<Out, In ...> startImpl(Private::ContinuationHelper<Out, In ...> helper)
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return Job<Out, In...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<Out, In ...>(helper, {}, Private::ExecutionFlag::GoodCase)));
+        new Private::ThenExecutor<Out, In ...>(std::move(helper), {}, Private::ExecutionFlag::GoodCase)));
 }
 
 template<typename Out, typename ... In>
-Job<Out, In ...> syncStartImpl(const SyncContinuation<Out, In ...> &func)
+Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> func)
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return Job<Out, In...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<Out, In ...>(func)));
+        new Private::SyncThenExecutor<Out, In ...>(std::move(func))));
 }
 
 static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
@@ -559,19 +559,20 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
                 });
         };
     return Job<void, List>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
+        new Private::ThenExecutor<void, List>(std::move(Private::ContinuationHelper<void, List>(cont)),
+                                              {}, Private::ExecutionFlag::GoodCase)));
 }
 
 template<typename List, typename ValueType = typename List::value_type>
 Job<void, List> forEach(JobContinuation<void, ValueType> func)
 {
-    return forEach<List, ValueType>(KAsync::start<void, ValueType>(func));
+    return forEach<List, ValueType>(KAsync::start<void, ValueType>(std::move(func)));
 }
 
 template<typename List, typename ValueType = typename List::value_type>
 Job<void, List> serialForEach(JobContinuation<void, ValueType> func)
 {
-    return serialForEach<List, ValueType>(KAsync::start<void, ValueType>(func));
+    return serialForEach<List, ValueType>(KAsync::start<void, ValueType>(std::move(func)));
 }
 
 template<typename Out>

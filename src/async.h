@@ -130,10 +130,18 @@ struct KASYNC_EXPORT Execution {
 
 template<typename Out, typename ... In>
 struct ContinuationHelper {
-    ContinuationHelper(const HandleContinuation<Out, In...> &func) : handleContinuation(func) {};
-    ContinuationHelper(const HandleErrorContinuation<Out, In...> &func) : handleErrorContinuation(func) {};
-    ContinuationHelper(const JobContinuation<Out, In...> &func) : jobContinuation(func) {};
-    ContinuationHelper(const JobErrorContinuation<Out, In...> &func) : jobErrorContinuation(func) {};
+    ContinuationHelper(HandleContinuation<Out, In...> func)
+        : handleContinuation(std::move(func))
+    {};
+    ContinuationHelper(HandleErrorContinuation<Out, In...> func)
+        : handleErrorContinuation(std::move(func))
+    {};
+    ContinuationHelper(JobContinuation<Out, In...> func)
+        : jobContinuation(std::move(func))
+    {};
+    ContinuationHelper(JobErrorContinuation<Out, In...> func)
+        : jobErrorContinuation(std::move(func))
+    {};
 
     HandleContinuation<Out, In...> handleContinuation;
     HandleErrorContinuation<Out, In...> handleErrorContinuation;
@@ -216,10 +224,10 @@ private:
 
 
 template<typename Out, typename ... In>
-Job<Out, In ...> startImpl(const Private::ContinuationHelper<Out, In ...> &);
+Job<Out, In ...> startImpl(Private::ContinuationHelper<Out, In ...>);
 
 template<typename Out, typename ... In>
-Job<Out, In ...> syncStartImpl(const SyncContinuation<Out, In ...> &);
+Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...>);
 
 
 
@@ -241,7 +249,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<Job
                                                       >::type
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return syncStartImpl<Out, In...>(func);
+    return syncStartImpl<Out, In...>(std::move(func));
 }
 
 ///Sync continuation without job: [] () -> T { ... }
@@ -251,7 +259,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<Job
                                                       >::type
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return syncStartImpl<Out, In...>(func);
+    return syncStartImpl<Out, In...>(std::move(func));
 }
 
 ///Void continuation with job: [] () -> KAsync::Job<...> { ... }
@@ -261,7 +269,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobB
                                                       >::type
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>({func});
+    return startImpl<Out, In...>(std::move(Private::ContinuationHelper<Out, In ...>(func)));
 }
 
 ///continuation with job: [] () -> KAsync::Job<...> { ... }
@@ -271,15 +279,15 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobB
                                                       >::type
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>({func});
+    return startImpl<Out, In...>(std::move(Private::ContinuationHelper<Out, In ...>(func)));
 }
 
 ///Handle continuation: [] (KAsync::Future<T>, ...) { ... }
 template<typename Out = void, typename ... In>
-KASYNC_EXPORT auto start(const HandleContinuation<Out, In ...> &func) -> Job<Out, In ...>
+KASYNC_EXPORT auto start(HandleContinuation<Out, In ...> func) -> Job<Out, In ...>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>({func});
+    return startImpl<Out, In...>(std::move(Private::ContinuationHelper<Out, In ...>(func)));
 }
 
 enum ControlFlowFlag {
@@ -481,10 +489,10 @@ class Job : public JobBase
     friend class Job;
 
     template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> startImpl(const Private::ContinuationHelper<OutOther, InOther ...> &);
+    friend Job<OutOther, InOther ...> startImpl(Private::ContinuationHelper<OutOther, InOther ...>);
 
     template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> syncStartImpl(const SyncContinuation<OutOther, InOther ...> &);
+    friend Job<OutOther, InOther ...> syncStartImpl(SyncContinuation<OutOther, InOther ...>);
 
     template<typename List, typename ValueType>
     friend Job<void, List> forEach(KAsync::Job<void, ValueType> job);
@@ -622,7 +630,7 @@ public:
     Job<void, In ...> each(JobContinuation<void, ValueType> func) const
     {
         eachInvariants<OutOther>();
-        return then<void, In ...>(forEach<Out, ValueType>(func));
+        return then<void, In ...>(forEach<Out, ValueType>(std::move(func)));
     }
 
     /**
@@ -633,7 +641,7 @@ public:
     Job<void, In ...> serialEach(JobContinuation<void, ValueType> func) const
     {
         eachInvariants<OutOther>();
-        return then<void, In ...>(serialForEach<Out, ValueType>(func));
+        return then<void, In ...>(serialForEach<Out, ValueType>(std::move(func)));
     }
 
     /**
@@ -695,22 +703,22 @@ public:
      */
     KAsync::Future<Out> exec();
 
-    explicit Job(const JobContinuation<Out, In ...> &func);
-    explicit Job(const HandleContinuation<Out, In ...> &func);
+    explicit Job(JobContinuation<Out, In ...> func);
+    explicit Job(HandleContinuation<Out, In ...> func);
 
 private:
     //@cond PRIVATE
     explicit Job(Private::ExecutorBasePtr executor);
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> thenImpl(const Private::ContinuationHelper<OutOther, InOther ...> &helper,
+    Job<OutOther, In ...> thenImpl(Private::ContinuationHelper<OutOther, InOther ...> helper,
                                    Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(const SyncContinuation<OutOther, InOther ...> &func, 
+    Job<OutOther, In ...> syncThenImpl(SyncContinuation<OutOther, InOther ...> func,
                                        Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(const SyncErrorContinuation<OutOther, InOther ...> &func,
+    Job<OutOther, In ...> syncThenImpl(SyncErrorContinuation<OutOther, InOther ...> func,
                                        Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always) const;
 
     template<typename InOther, typename ... InOtherTail>
