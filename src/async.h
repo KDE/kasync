@@ -203,7 +203,7 @@ protected:
     virtual ~Executor() {}
     virtual void run(const ExecutionPtr &execution) = 0;
 
-    ExecutionPtr exec(const ExecutorBasePtr &self);
+    ExecutionPtr exec(const ExecutorBasePtr &self) override;
 
     const ExecutionFlag executionFlag;
 
