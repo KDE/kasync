@@ -319,7 +319,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
 
 template<typename Out, typename ... In>
 template<typename ... InOther>
-Job<Out, In ...>::operator Job<void>()
+Job<Out, In ...>::operator typename std::conditional<std::is_void<OutType>::value, IncompleteType, Job<void>>::type ()
 {
     return thenImpl<void, InOther ...>({[](InOther ...){ return KAsync::null<void>(); }}, {});
 }

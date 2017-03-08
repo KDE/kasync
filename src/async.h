@@ -492,6 +492,9 @@ class Job : public JobBase
     template<typename List, typename ValueType>
     friend Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
 
+    // Used to disable implicit conversion of Job<void to Job<void> which triggers
+    // comiler warning.
+    struct IncompleteType;
     //@endcond
 
 public:
@@ -643,7 +646,7 @@ public:
      *  .then<void>([](){}); //Necessary for the assignment without the implicit conversion
      */
     template<typename ... InOther>
-    operator Job<void>();
+    operator typename std::conditional<std::is_void<OutType>::value, IncompleteType, Job<void>>::type ();
 
     /**
      * Adds an unnamed value to the context.
