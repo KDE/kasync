@@ -52,14 +52,19 @@ public:
         //Execute one of the available workers
         KAsync::Future<Out> *future = execution->result<Out>();
 
-        if (ThenExecutor<Out, In ...>::mContinuationHelper.handleContinuation) {
-            ThenExecutor<Out, In ...>::mContinuationHelper.handleContinuation(prevFuture ? prevFuture->value() : In() ..., *future);
-        } else if (ThenExecutor<Out, In ...>::mContinuationHelper.handleErrorContinuation) {
-            ThenExecutor<Out, In ...>::mContinuationHelper.handleErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(), prevFuture ? prevFuture->value() : In() ..., *future);
-        } else if (ThenExecutor<Out, In ...>::mContinuationHelper.jobContinuation) {
-            executeJobAndApply(prevFuture ? prevFuture->value() : In() ..., ThenExecutor<Out, In...>::mContinuationHelper.jobContinuation, *future, std::is_void<Out>());
-        } else if (ThenExecutor<Out, In ...>::mContinuationHelper.jobErrorContinuation) {
-            executeJobAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(), prevFuture ? prevFuture->value() : In() ..., ThenExecutor<Out, In...>::mContinuationHelper.jobErrorContinuation, *future, std::is_void<Out>());
+        const auto &helper = ThenExecutor<Out, In ...>::mContinuationHelper;
+        if (helper.handleContinuation) {
+            helper.handleContinuation(prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (helper.handleErrorContinuation) {
+            helper.handleErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
+                                           prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (helper.jobContinuation) {
+            executeJobAndApply(prevFuture ? prevFuture->value() : In() ...,
+                               helper.jobContinuation, *future, std::is_void<Out>());
+        } else if (helper.jobErrorContinuation) {
+            executeJobAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
+                               prevFuture ? prevFuture->value() : In() ...,
+                               helper.jobErrorContinuation, *future, std::is_void<Out>());
         }
     }
 
@@ -189,14 +194,16 @@ public:
         KAsync::Future<Out> *future = execution->result<Out>();
 
         if (SyncThenExecutor<Out, In ...>::mContinuation) {
-            callAndApply(prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mContinuation,
+            callAndApply(prevFuture ? prevFuture->value() : In() ...,
+                         SyncThenExecutor<Out, In ...>::mContinuation,
                          *future, std::is_void<Out>());
         }
 
         if (SyncThenExecutor<Out, In ...>::mErrorContinuation) {
             assert(prevFuture);
             callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                         prevFuture ? prevFuture->value() : In() ..., SyncThenExecutor<Out, In ...>::mErrorContinuation,
+                         prevFuture ? prevFuture->value() : In() ...,
+                         SyncThenExecutor<Out, In ...>::mErrorContinuation,
                          *future, std::is_void<Out>());
         }
         future->setFinished();
@@ -291,7 +298,8 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
                      });
     fw->setFuture(*execution->result<Out>());
 
-    KAsync::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>() : nullptr;
+    KAsync::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>()
+                                                                   : nullptr;
     if (!prevFuture || prevFuture->isFinished()) { //The previous job is already done
         if (prevFuture) { // prevFuture implies execution->prevExecution
             runExecution(*prevFuture, execution);
