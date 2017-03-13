@@ -302,7 +302,7 @@ enum ControlFlowFlag {
  *
  * Loop continues while body returns ControlFlowFlag::Continue.
  */
-KASYNC_EXPORT Job<void> doWhile(Job<ControlFlowFlag> body);
+KASYNC_EXPORT Job<void> doWhile(const Job<ControlFlowFlag> &body);
 
 /**
  * @relates Job
@@ -313,7 +313,7 @@ KASYNC_EXPORT Job<void> doWhile(Job<ControlFlowFlag> body);
  *
  * @see doWhile
  */
-KASYNC_EXPORT Job<void> doWhile(JobContinuation<ControlFlowFlag> body);
+KASYNC_EXPORT Job<void> doWhile(const JobContinuation<ControlFlowFlag> &body);
 
 
 

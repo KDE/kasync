@@ -75,20 +75,28 @@ JobBase::~JobBase()
 {
 }
 
-
-Job<void> KAsync::doWhile(Job<ControlFlowFlag> body)
+Job<void> KAsync::doWhile(const Job<ControlFlowFlag> &body)
 {
-    return body.then<void, ControlFlowFlag>([body](const KAsync::Error &error, ControlFlowFlag flag) {
-        if (error) {
-            return KAsync::error(error);
-        } else if (flag == ControlFlowFlag::Continue) {
-            return doWhile(body);
-        }
-        return KAsync::null();
+    return KAsync::start<void>([body] (KAsync::Future<void> &future) {
+        auto job = body.then<void, ControlFlowFlag>([&future, body](const KAsync::Error &error, ControlFlowFlag flag) {
+            if (error) {
+                future.setError(error);
+                future.setFinished();
+            } else if (flag == ControlFlowFlag::Continue) {
+                doWhile(body).then<void>([&future](const KAsync::Error &error) {
+                    if (error) {
+                        future.setError(error);
+                    }
+                    future.setFinished();
+                }).exec();
+            } else {
+                future.setFinished();
+            }
+        }).exec();
     });
 }
 
-Job<void> KAsync::doWhile(JobContinuation<ControlFlowFlag> body)
+Job<void> KAsync::doWhile(const JobContinuation<ControlFlowFlag> &body)
 {
     return doWhile(KAsync::start<ControlFlowFlag>([body] {
         return body();

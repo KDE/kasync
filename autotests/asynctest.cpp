@@ -61,6 +61,8 @@ private Q_SLOTS:
     void testErrorHandling();
     void testContext();
     void testDoWhile();
+    void testDoWhileWithJob();
+    void testNestedDoWhile();
     void testAsyncPromises();
     void testNestedAsync();
     void testVoidNestedJob();
@@ -597,6 +599,58 @@ void AsyncTest::testDoWhile()
     future.waitForFinished();
     QVERIFY(future.isFinished());
     QCOMPARE(i, 5);
+}
+
+void AsyncTest::testDoWhileWithJob()
+{
+    int i = 0;
+    auto future = KAsync::doWhile(KAsync::start<KAsync::ControlFlowFlag>([&i]() {
+        i++;
+        if (i < 5) {
+            return KAsync::Continue;
+        }
+        return KAsync::Break;
+    }))
+    .exec();
+    future.waitForFinished();
+    QVERIFY(future.isFinished());
+    QCOMPARE(i, 5);
+}
+
+void AsyncTest::testNestedDoWhile()
+{
+    int outer = 0;
+    int inner = 0;
+    int total = 0;
+    auto future = KAsync::doWhile(
+        KAsync::start([&] {
+            outer++;
+            inner = 0;
+            //Safety net to avoid infinite recursion
+            Q_ASSERT(outer < 3);
+        }).then(KAsync::doWhile(KAsync::start<KAsync::ControlFlowFlag>([&] {
+                total++;
+                inner++;
+                //This is the abort condition of the outer loop
+                if (inner < 2) {
+                    return KAsync::Continue;
+                }
+                return KAsync::Break;
+            })
+        ))
+        .then([&] {
+            //This is the abort condition of the outer loop
+            if (outer < 2) {
+                return KAsync::Continue;
+            }
+            return KAsync::Break;
+        })
+    )
+    .exec();
+    future.waitForFinished();
+    QVERIFY(future.isFinished());
+    QCOMPARE(outer, 2);
+    QCOMPARE(total, 4);
 }
 
 void AsyncTest::testAsyncPromises()
