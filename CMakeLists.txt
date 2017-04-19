@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(KAsync VERSION 0.1.0)
+project(KAsync VERSION 0.1.1)
 
 # ECM setup
 find_package(ECM 5.10.0 CONFIG REQUIRED)
