@@ -13,7 +13,13 @@ You may need to add the following to your ~/.gitconfig for the xz compression to
     [tar "tar.xz"]
         command = xz -c
 
+Generate a checksum to be included in the announcement:
+    sha256sum kasync-0.1.1.tar.xz
+
 Tarballs should be uploaded to unstable/kasync/$VERSION/src/kasync-$version.tar.xz
+    curl -T kasync-0.1.0.tar.xz ftp://upload.kde.org/incoming/
+
+Request the move to the target location via sysadmin ticket.
 
 See ftp://upload.kde.org/README
 
