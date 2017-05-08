@@ -35,6 +35,7 @@
 #include <QVector>
 #include <QObject>
 #include <QSharedPointer>
+#include <QPointer>
 
 #include <QDebug>
 
@@ -106,6 +107,8 @@ namespace Private
 class ExecutorBase;
 typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
 
+class ExecutionContext;
+
 struct KASYNC_EXPORT Execution {
     explicit Execution(const ExecutorBasePtr &executor);
     virtual ~Execution();
@@ -164,7 +167,7 @@ class KASYNC_EXPORT ExecutorBase
 
 public:
     virtual ~ExecutorBase();
-    virtual ExecutionPtr exec(const ExecutorBasePtr &self) = 0;
+    virtual ExecutionPtr exec(const ExecutorBasePtr &self, QSharedPointer<Private::ExecutionContext> context) = 0;
 
 protected:
     ExecutorBase(const ExecutorBasePtr &parent);
@@ -188,8 +191,14 @@ protected:
         mContext << entry;
     }
 
+    void guard(const QObject *o)
+    {
+        mGuards.append(QPointer<const QObject>{o});
+    }
+
     QString mExecutorName;
     QVector<QVariant> mContext;
+    QVector<QPointer<const QObject>> mGuards;
 };
 
 enum ExecutionFlag {
@@ -211,12 +220,12 @@ protected:
     virtual ~Executor() {}
     virtual void run(const ExecutionPtr &execution) = 0;
 
-    ExecutionPtr exec(const ExecutorBasePtr &self) override;
+    ExecutionPtr exec(const ExecutorBasePtr &self, QSharedPointer<Private::ExecutionContext> context) override;
 
     const ExecutionFlag executionFlag;
 
 private:
-    void runExecution(const KAsync::Future<PrevOut> &prevFuture, const ExecutionPtr &execution);
+    void runExecution(const KAsync::Future<PrevOut> *prevFuture, const ExecutionPtr &execution, bool guardIsBroken);
 };
 
 } // namespace Private
@@ -668,6 +677,19 @@ public:
     {
         assert(mExecutor);
         mExecutor->addToContext(QVariant::fromValue<T>(value));
+        return *this;
+    }
+
+    /**
+     * Adds a guard.
+     * It is guaranteed that no callback is executed after the guard vanishes.
+     *
+     * Use this i.e. ensure you don't call-back into an already destroyed object.
+     */
+    Job<Out, In ...> &guard(const QObject *o)
+    {
+        assert(mExecutor);
+        mExecutor->guard(o);
         return *this;
     }
 

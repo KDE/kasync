@@ -192,19 +192,18 @@ public:
         }
 
         KAsync::Future<Out> *future = execution->result<Out>();
-
         if (SyncThenExecutor<Out, In ...>::mContinuation) {
             callAndApply(prevFuture ? prevFuture->value() : In() ...,
-                         SyncThenExecutor<Out, In ...>::mContinuation,
-                         *future, std::is_void<Out>());
+                        SyncThenExecutor<Out, In ...>::mContinuation,
+                        *future, std::is_void<Out>());
         }
 
         if (SyncThenExecutor<Out, In ...>::mErrorContinuation) {
             assert(prevFuture);
             callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                         prevFuture ? prevFuture->value() : In() ...,
-                         SyncThenExecutor<Out, In ...>::mErrorContinuation,
-                         *future, std::is_void<Out>());
+                        prevFuture ? prevFuture->value() : In() ...,
+                        SyncThenExecutor<Out, In ...>::mErrorContinuation,
+                        *future, std::is_void<Out>());
         }
         future->setFinished();
     }
@@ -248,26 +247,48 @@ KAsync::Future<T>* ExecutorBase::createFuture(const ExecutionPtr &execution) con
 }
 
 template<typename PrevOut, typename Out, typename ... In>
-void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> &prevFuture,
-                                                  const ExecutionPtr &execution)
+void Executor<PrevOut, Out, In ...>::runExecution(const KAsync::Future<PrevOut> *prevFuture,
+                                                  const ExecutionPtr &execution, bool guardIsBroken)
 {
-    if (prevFuture.hasError() && executionFlag == ExecutionFlag::GoodCase) {
-        //Propagate the error to the outer Future
-        Q_ASSERT(prevFuture.errors().size() == 1);
-        execution->resultBase->setError(prevFuture.errors().first());
-        return;
-    }
-    if (!prevFuture.hasError() && executionFlag == ExecutionFlag::ErrorCase) {
-        //Propagate the value to the outer Future
-        KAsync::detail::copyFutureValue<PrevOut>(prevFuture, *execution->result<PrevOut>());
+    if (guardIsBroken) {
         execution->resultBase->setFinished();
         return;
+    }
+    if (prevFuture) {
+        if (prevFuture->hasError() && executionFlag == ExecutionFlag::GoodCase) {
+            //Propagate the error to the outer Future
+            Q_ASSERT(prevFuture->errors().size() == 1);
+            execution->resultBase->setError(prevFuture->errors().first());
+            return;
+        }
+        if (!prevFuture->hasError() && executionFlag == ExecutionFlag::ErrorCase) {
+            //Propagate the value to the outer Future
+            KAsync::detail::copyFutureValue<PrevOut>(*prevFuture, *execution->result<PrevOut>());
+            execution->resultBase->setFinished();
+            return;
+        }
     }
     run(execution);
 }
 
+class ExecutionContext {
+public:
+    typedef QSharedPointer<ExecutionContext> Ptr;
+
+    QVector<QPointer<const QObject>> guards;
+    bool guardIsBroken() const
+    {
+        for (const auto &g : guards) {
+            if (!g) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
 template<typename PrevOut, typename Out, typename ... In>
-ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
+ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self, ExecutionContext::Ptr context)
 {
     /*
      * One executor per job, created with the construction of the Job object.
@@ -285,8 +306,10 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
     execution->tracer = new Tracer(execution.data()); // owned by execution
 #endif
 
+    context->guards += mGuards;
+
     // chainup
-    execution->prevExecution = mPrev ? mPrev->exec(mPrev) : ExecutionPtr();
+    execution->prevExecution = mPrev ? mPrev->exec(mPrev, context) : ExecutionPtr();
 
     execution->resultBase = ExecutorBase::createFuture<Out>(execution);
     //We watch our own future to finish the execution once we're done
@@ -301,19 +324,15 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self)
     KAsync::Future<PrevOut> *prevFuture = execution->prevExecution ? execution->prevExecution->result<PrevOut>()
                                                                    : nullptr;
     if (!prevFuture || prevFuture->isFinished()) { //The previous job is already done
-        if (prevFuture) { // prevFuture implies execution->prevExecution
-            runExecution(*prevFuture, execution);
-        } else {
-            run(execution);
-        }
+        runExecution(prevFuture, execution, context->guardIsBroken());
     } else { //The previous job is still running and we have to wait for it's completion
         auto prevFutureWatcher = new KAsync::FutureWatcher<PrevOut>();
         QObject::connect(prevFutureWatcher, &KAsync::FutureWatcher<PrevOut>::futureReady,
-                         [prevFutureWatcher, execution, this]() {
+                         [prevFutureWatcher, execution, this, context]() {
                              auto prevFuture = prevFutureWatcher->future();
                              assert(prevFuture.isFinished());
                              delete prevFutureWatcher;
-                             runExecution(prevFuture, execution);
+                             runExecution(&prevFuture, execution, context->guardIsBroken());
                          });
 
         prevFutureWatcher->setFuture(*static_cast<KAsync::Future<PrevOut>*>(prevFuture));
@@ -411,7 +430,7 @@ KAsync::Future<Out> Job<Out, In ...>::exec(FirstIn in)
 template<typename Out, typename ... In>
 KAsync::Future<Out> Job<Out, In ...>::exec()
 {
-    Private::ExecutionPtr execution = mExecutor->exec(mExecutor);
+    Private::ExecutionPtr execution = mExecutor->exec(mExecutor, Private::ExecutionContext::Ptr::create());
     KAsync::Future<Out> result = *execution->result<Out>();
 
     return result;

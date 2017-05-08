@@ -60,6 +60,7 @@ private Q_SLOTS:
     void testSyncPromises();
     void testErrorHandling();
     void testContext();
+    void testGuard();
     void testDoWhile();
     void testDoWhileWithJob();
     void testNestedDoWhile();
@@ -583,6 +584,78 @@ void AsyncTest::testContext()
         }
     }
     QVERIFY(!refToObj);
+}
+
+void AsyncTest::testGuard()
+{
+    //Guard before
+    {
+        auto guard = new QObject;
+        bool continuationCalled = false;
+        auto job = KAsync::null<void>();
+        job = KAsync::start<void>(
+            [](KAsync::Future<void> &future) {
+                new AsyncSimulator<void>(future);
+            });
+        job.guard(guard);
+        job = job
+            .then([] {})
+            .then([&] {
+                continuationCalled = true;
+                qWarning() << "Continuation called";
+            });
+        auto future = job.exec();
+        qWarning() << "deleting guard";
+        delete guard;
+        QVERIFY(!continuationCalled);
+        future.waitForFinished();
+        QVERIFY(!continuationCalled);
+    }
+    //Guard after
+    {
+        auto guard = new QObject;
+        bool continuationCalled = false;
+        auto job = KAsync::null<void>();
+        job = KAsync::start<void>(
+            [](KAsync::Future<void> &future) {
+                new AsyncSimulator<void>(future);
+            });
+        job = job.then([&] {
+                continuationCalled = true;
+                qWarning() << "Continuation called";
+            })
+            .then([] {})
+            .guard(guard);
+        auto future = job.exec();
+        qWarning() << "deleting guard";
+        delete guard;
+        QVERIFY(!continuationCalled);
+        future.waitForFinished();
+        QVERIFY(!continuationCalled);
+    }
+
+
+    {
+        auto guard = new QObject;
+        bool continuationCalled = false;
+        auto job = KAsync::null<void>();
+        job = KAsync::start<void>(
+            [](KAsync::Future<void> &future) {
+                new AsyncSimulator<void>(future);
+            });
+        //Ensure the continuation is never called.
+        job = job.then([&] {
+                continuationCalled = true;
+            }).guard(guard);
+        //Ensure the guard survives copies
+        auto job2 = job;
+        job = KAsync::null<void>();
+        auto future = job2.exec();
+        delete guard;
+        QVERIFY(!continuationCalled);
+        future.waitForFinished();
+        QVERIFY(!continuationCalled);
+    }
 }
 
 void AsyncTest::testDoWhile()
