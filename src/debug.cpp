@@ -23,6 +23,7 @@
 #ifdef __GNUG__
 #include <cxxabi.h>
 #include <memory>
+#include <cstdlib>
 #endif
 
 namespace KAsync
