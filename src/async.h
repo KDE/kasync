@@ -253,7 +253,7 @@ Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...>);
 
 ///Sync void continuation without job: [] () -> T { ... }
 template<typename Out = void, typename ... In, typename F>
-KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func())>::value,
+auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func())>::value,
                                                        Job<decltype(func()), In...>
                                                       >::type
 {
@@ -263,7 +263,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<Job
 
 ///Sync continuation without job: [] () -> T { ... }
 template<typename Out = void, typename ... In, typename F>
-KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
+auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
                                                        Job<decltype(func(std::declval<In...>())), In...>
                                                       >::type
 {
@@ -273,7 +273,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<!std::is_base_of<Job
 
 ///Void continuation with job: [] () -> KAsync::Job<...> { ... }
 template<typename Out = void, typename ... In, typename F>
-KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func())>::value,
+auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func())>::value,
                                                        Job<typename decltype(func())::OutType, In...>
                                                       >::type
 {
@@ -283,7 +283,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobB
 
 ///continuation with job: [] () -> KAsync::Job<...> { ... }
 template<typename Out = void, typename ... In, typename F>
-KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
+auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
                                                        Job<typename decltype(func(std::declval<In...>()))::OutType, In...>
                                                       >::type
 {
@@ -293,7 +293,7 @@ KASYNC_EXPORT auto start(F func) -> typename std::enable_if<std::is_base_of<JobB
 
 ///Handle continuation: [] (KAsync::Future<T>, ...) { ... }
 template<typename Out = void, typename ... In>
-KASYNC_EXPORT auto start(HandleContinuation<Out, In ...> func) -> Job<Out, In ...>
+auto start(HandleContinuation<Out, In ...> func) -> Job<Out, In ...>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return startImpl<Out, In...>(std::move(Private::ContinuationHelper<Out, In ...>(func)));

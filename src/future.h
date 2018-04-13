@@ -99,7 +99,7 @@ public:
     void setProgress(int processed, int total);
 
 protected:
-    class PrivateBase : public QSharedData
+    class KASYNC_EXPORT PrivateBase : public QSharedData
     {
     public:
         explicit PrivateBase(const KAsync::Private::ExecutionPtr &execution);
