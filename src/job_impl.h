@@ -315,7 +315,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self, E
     //We watch our own future to finish the execution once we're done
     auto fw = new KAsync::FutureWatcher<Out>();
     QObject::connect(fw, &KAsync::FutureWatcher<Out>::futureReady,
-                     [fw, execution, this]() {
+                     [fw, execution]() {
                          execution->setFinished();
                          delete fw;
                      });
