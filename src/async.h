@@ -251,40 +251,20 @@ Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...>);
  * @param func A continuation to be executed.
  */
 
-///Sync void continuation without job: [] () -> T { ... }
-template<typename Out = void, typename ... In, typename F>
-auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func())>::value,
-                                                       Job<decltype(func()), In...>
-                                                      >::type
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return syncStartImpl<Out, In...>(std::move(func));
-}
-
 ///Sync continuation without job: [] () -> T { ... }
 template<typename Out = void, typename ... In, typename F>
-auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
-                                                       Job<decltype(func(std::declval<In...>())), In...>
+auto start(F func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<In>() ...))>::value,
+                                                       Job<decltype(func(std::declval<In>() ...)), In...>
                                                       >::type
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return syncStartImpl<Out, In...>(std::move(func));
-}
-
-///Void continuation with job: [] () -> KAsync::Job<...> { ... }
-template<typename Out = void, typename ... In, typename F>
-auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func())>::value,
-                                                       Job<typename decltype(func())::OutType, In...>
-                                                      >::type
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>(std::move(Private::ContinuationHelper<Out, In ...>(func)));
 }
 
 ///continuation with job: [] () -> KAsync::Job<...> { ... }
 template<typename Out = void, typename ... In, typename F>
-auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<In...>()))>::value,
-                                                       Job<typename decltype(func(std::declval<In...>()))::OutType, In...>
+auto start(F func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<In>() ...))>::value,
+                                                       Job<typename decltype(func(std::declval<In>() ...))::OutType, In...>
                                                       >::type
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
