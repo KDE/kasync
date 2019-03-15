@@ -36,7 +36,7 @@ QString demangleName(const char *name)
 {
 #ifdef __GNUG__
     int status = 1; // uses -3 to 0 error codes
-    std::unique_ptr<char, void(*)(void*)> demangled(abi::__cxa_demangle(name, 0, 0, &status), std::free);
+    std::unique_ptr<char, void(*)(void*)> demangled(abi::__cxa_demangle(name, nullptr, nullptr, &status), std::free);
     if (status == 0) {
         return QString::fromLatin1(demangled.get());
     }

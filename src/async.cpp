@@ -48,7 +48,7 @@ void Private::Execution::setFinished()
 
 void Private::Execution::releaseFuture()
 {
-    resultBase = 0;
+    resultBase = nullptr;
 }
 
 
