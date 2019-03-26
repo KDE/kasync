@@ -322,7 +322,7 @@ KASYNC_EXPORT Job<void> wait(int delay);
  *
  */
 template<typename Out = void>
-KASYNC_EXPORT Job<Out> null();
+Job<Out> null();
 
 /**
  * @relates Job
@@ -330,7 +330,7 @@ KASYNC_EXPORT Job<Out> null();
  * Async value.
  */
 template<typename Out>
-KASYNC_EXPORT Job<Out> value(Out);
+Job<Out> value(Out);
 
 /**
  * @relates Job
@@ -341,7 +341,7 @@ KASYNC_EXPORT Job<Out> value(Out);
  * Errors while not stop processing of other jobs but set an error on the wrapper job.
  */
 template<typename List, typename ValueType = typename List::value_type>
-KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
+Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
 /**
  * @relates Job
@@ -353,7 +353,7 @@ KASYNC_EXPORT Job<void, List> forEach(KAsync::Job<void, ValueType> job);
  * @see serialForEach
  */
 template<typename List>
-KASYNC_EXPORT Job<void, List> forEach(JobContinuation<void, typename List::value_type>);
+ Job<void, List> forEach(JobContinuation<void, typename List::value_type>);
 
 
 /**
@@ -365,7 +365,7 @@ KASYNC_EXPORT Job<void, List> forEach(JobContinuation<void, typename List::value
  * Errors while not stop processing of other jobs but set an error on the wrapper job.
  */
 template<typename List, typename ValueType = typename List::value_type>
-KASYNC_EXPORT Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
+Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
 
 /**
  * @relates Job
@@ -377,7 +377,7 @@ KASYNC_EXPORT Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
  * @see serialForEach
  */
 template<typename List>
-KASYNC_EXPORT Job<void, List> serialForEach(JobContinuation<void, typename List::value_type>);
+Job<void, List> serialForEach(JobContinuation<void, typename List::value_type>);
 
 
 /**
@@ -389,7 +389,7 @@ KASYNC_EXPORT Job<void, List> serialForEach(JobContinuation<void, typename List:
  *
  */
 template<typename Out = void>
-KASYNC_EXPORT Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
+Job<Out> error(int errorCode = 1, const QString &errorMessage = QString());
 
 /**
  * @relates Job
@@ -400,7 +400,7 @@ KASYNC_EXPORT Job<Out> error(int errorCode = 1, const QString &errorMessage = QS
  *
  */
 template<typename Out = void>
-KASYNC_EXPORT Job<Out> error(const char *);
+Job<Out> error(const char *);
 
 /**
  * @relates Job
@@ -411,7 +411,7 @@ KASYNC_EXPORT Job<Out> error(const char *);
  *
  */
 template<typename Out = void>
-KASYNC_EXPORT Job<Out> error(const Error &);
+Job<Out> error(const Error &);
 
 //@cond PRIVATE
 class KASYNC_EXPORT JobBase
@@ -484,7 +484,7 @@ class Job : public JobBase
     friend Job<OutOther, InOther ...> syncStartImpl(SyncContinuation<OutOther, InOther ...>);
 
     template<typename List, typename ValueType>
-    friend Job<void, List> forEach(KAsync::Job<void, ValueType> job);
+    friend  Job<void, List> forEach(KAsync::Job<void, ValueType> job);
 
     template<typename List, typename ValueType>
     friend Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
