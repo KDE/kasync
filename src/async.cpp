@@ -27,8 +27,6 @@ using namespace KAsync;
 
 Private::Execution::Execution(const Private::ExecutorBasePtr &executor)
     : executor(executor)
-    , resultBase(nullptr)
-    , tracer(nullptr)
 {
 }
 
@@ -43,7 +41,7 @@ Private::Execution::~Execution()
 
 void Private::Execution::setFinished()
 {
-    delete tracer;
+    tracer.reset();
 }
 
 void Private::Execution::releaseFuture()
@@ -51,29 +49,6 @@ void Private::Execution::releaseFuture()
     resultBase = nullptr;
 }
 
-
-
-
-Private::ExecutorBase::ExecutorBase(const ExecutorBasePtr &parent)
-    : mPrev(parent)
-{
-}
-
-Private::ExecutorBase::~ExecutorBase()
-{
-}
-
-
-
-
-JobBase::JobBase(const Private::ExecutorBasePtr &executor)
-    : mExecutor(executor)
-{
-}
-
-JobBase::~JobBase()
-{
-}
 
 Job<void> KAsync::doWhile(const Job<ControlFlowFlag> &body)
 {
