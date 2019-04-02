@@ -303,7 +303,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self, E
     // valid until the entire execution is finished
     ExecutionPtr execution = ExecutionPtr::create(self);
 #ifndef QT_NO_DEBUG
-    execution->tracer = new Tracer(execution.data()); // owned by execution
+    execution->tracer = std::make_unique<Tracer>(execution.data()); // owned by execution
 #endif
 
     context->guards += mGuards;
@@ -357,8 +357,8 @@ Job<OutOther, In ...> Job<Out, In ...>::thenImpl(Private::ContinuationHelper<Out
                                                  Private::ExecutionFlag execFlag) const
 {
     thenInvariants<InOther ...>();
-    return Job<OutOther, In ...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<OutOther, InOther ...>(std::forward<Private::ContinuationHelper<OutOther, InOther ...>>(workHelper), mExecutor, execFlag)));
+    return Job<OutOther, In ...>(QSharedPointer<Private::ThenExecutor<OutOther, InOther ...>>::create(
+                std::forward<Private::ContinuationHelper<OutOther, InOther ...>>(workHelper), mExecutor, execFlag));
 }
 
 template<typename Out, typename ... In>
@@ -378,8 +378,8 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncContinuation<OutOther, 
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
-    return Job<OutOther, In...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<OutOther, InOther ...>(std::forward<SyncContinuation<OutOther, InOther ...>>(func), mExecutor, execFlag)));
+    return Job<OutOther, In...>(QSharedPointer<Private::SyncThenExecutor<OutOther, InOther ...>>::create(
+                std::forward<SyncContinuation<OutOther, InOther ...>>(func), mExecutor, execFlag));
 }
 
 template<typename Out, typename ... In>
@@ -389,17 +389,17 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncErrorContinuation<OutOt
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
-    return Job<OutOther, In...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<OutOther, InOther ...>(std::forward<SyncErrorContinuation<OutOther, InOther ...>>(func), mExecutor, execFlag)));
+    return Job<OutOther, In...>(QSharedPointer<Private::SyncThenExecutor<OutOther, InOther ...>>::create(
+                std::forward<SyncErrorContinuation<OutOther, InOther ...>>(func), mExecutor, execFlag));
 }
 
 template<typename Out, typename ... In>
 Job<Out, In ...> Job<Out, In ...>::onError(const SyncErrorContinuation<void> &errorFunc) const
 {
-    return Job<Out, In...>(Private::ExecutorBasePtr(
-        new Private::SyncErrorExecutor<Out, Out>([=](const Error &error) {
+    return Job<Out, In...>(QSharedPointer<Private::SyncErrorExecutor<Out, Out>>::create(
+            [=](const Error &error) {
                 errorFunc(error);
-            }, mExecutor, Private::ExecutionFlag::ErrorCase)));
+            }, mExecutor, Private::ExecutionFlag::ErrorCase));
 }
 
 
@@ -415,11 +415,10 @@ KAsync::Future<Out> Job<Out, In ...>::exec(FirstIn in)
         first = first->mPrev;
     }
 
-    auto init = new Private::ThenExecutor<FirstIn>({[val = std::move(in)](Future<FirstIn> &future) {
-            future.setResult(val);
-        }});
-
-    first->mPrev = Private::ExecutorBasePtr(init);
+    first->mPrev = QSharedPointer<Private::ThenExecutor<FirstIn>>::create(
+            Private::ContinuationHelper<FirstIn>([val = std::move(in)](Future<FirstIn> &future) {
+                 future.setResult(val);
+            }));
 
     auto result = exec();
     // Remove the injected executor
@@ -480,17 +479,16 @@ template<typename Out, typename ... In>
 Job<Out, In ...> startImpl(Private::ContinuationHelper<Out, In ...> &&helper)
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Job<Out, In...>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<Out, In ...>(std::forward<Private::ContinuationHelper<Out, In...>>(helper),
-                                               {}, Private::ExecutionFlag::GoodCase)));
+    return Job<Out, In...>(QSharedPointer<Private::ThenExecutor<Out, In ...>>::create(
+                std::forward<Private::ContinuationHelper<Out, In...>>(helper), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 template<typename Out, typename ... In>
 Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&func)
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Job<Out, In...>(Private::ExecutorBasePtr(
-        new Private::SyncThenExecutor<Out, In ...>(std::forward<SyncContinuation<Out, In ...>>(func))));
+    return Job<Out, In...>(QSharedPointer<Private::SyncThenExecutor<Out, In ...>>::create(
+                std::forward<SyncContinuation<Out, In ...>>(func)));
 }
 
 static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
@@ -554,8 +552,8 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job)
                     }
                 });
         };
-    return Job<void, List>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<void, List>({cont}, {}, Private::ExecutionFlag::GoodCase)));
+    return Job<void, List>(QSharedPointer<Private::ThenExecutor<void, List>>::create(
+                Private::ContinuationHelper<void, List>(std::move(cont)), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 
@@ -586,9 +584,8 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
                     }
                 });
         };
-    return Job<void, List>(Private::ExecutorBasePtr(
-        new Private::ThenExecutor<void, List>(Private::ContinuationHelper<void, List>(cont),
-                                              {}, Private::ExecutionFlag::GoodCase)));
+    return Job<void, List>(QSharedPointer<Private::ThenExecutor<void, List>>::create(
+            Private::ContinuationHelper<void, List>(std::move(cont)), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 template<typename List, typename ValueType = typename List::value_type>

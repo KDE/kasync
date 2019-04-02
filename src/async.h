@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <cassert>
 #include <iterator>
+#include <memory>
 
 #include "future.h"
 #include "debug.h"
@@ -123,11 +124,9 @@ struct KASYNC_EXPORT Execution {
     void releaseFuture();
 
     ExecutorBasePtr executor;
-    FutureBase *resultBase;
-
     ExecutionPtr prevExecution;
-
-    Tracer *tracer;
+    std::unique_ptr<Tracer> tracer;
+    FutureBase *resultBase = nullptr;
 };
 
 
@@ -166,11 +165,13 @@ class KASYNC_EXPORT ExecutorBase
     friend class KAsync::Tracer;
 
 public:
-    virtual ~ExecutorBase();
+    virtual ~ExecutorBase() = default;
     virtual ExecutionPtr exec(const ExecutorBasePtr &self, QSharedPointer<Private::ExecutionContext> context) = 0;
 
 protected:
-    ExecutorBase(const ExecutorBasePtr &parent);
+    ExecutorBase(const ExecutorBasePtr &parent)
+        : mPrev(parent)
+    {}
 
     template<typename T>
     KAsync::Future<T>* createFuture(const ExecutionPtr &execution) const;
@@ -420,8 +421,11 @@ class KASYNC_EXPORT JobBase
     friend class Job;
 
 public:
-    explicit JobBase(const Private::ExecutorBasePtr &executor);
-    virtual ~JobBase();
+    explicit JobBase(const Private::ExecutorBasePtr &executor)
+        : mExecutor(executor)
+    {}
+
+    virtual ~JobBase() = default;
 
 protected:
     Private::ExecutorBasePtr mExecutor;
