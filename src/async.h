@@ -353,8 +353,8 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job);
  *
  * @see serialForEach
  */
-template<typename List>
- Job<void, List> forEach(JobContinuation<void, typename List::value_type>);
+template<typename List, typename ValueType = typename List::value_type>
+ Job<void, List> forEach(JobContinuation<void, ValueType> &&);
 
 
 /**
@@ -377,8 +377,8 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
  *
  * @see serialForEach
  */
-template<typename List>
-Job<void, List> serialForEach(JobContinuation<void, typename List::value_type>);
+template<typename List, typename ValueType = typename List::value_type>
+Job<void, List> serialForEach(JobContinuation<void, ValueType> &&);
 
 
 /**

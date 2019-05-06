@@ -588,13 +588,13 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
             Private::ContinuationHelper<void, List>(std::move(cont)), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
-template<typename List, typename ValueType = typename List::value_type>
+template<typename List, typename ValueType>
 Job<void, List> forEach(JobContinuation<void, ValueType> &&func)
 {
     return forEach<List, ValueType>(KAsync::start<void, ValueType>(std::forward<JobContinuation<void, ValueType>>(func)));
 }
 
-template<typename List, typename ValueType = typename List::value_type>
+template<typename List, typename ValueType>
 Job<void, List> serialForEach(JobContinuation<void, ValueType> &&func)
 {
     return serialForEach<List, ValueType>(KAsync::start<void, ValueType>(std::forward<JobContinuation<void, ValueType>>(func)));
