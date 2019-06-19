@@ -230,7 +230,7 @@ public:
      */
     void setValue(const T &value)
     {
-        static_cast<typename FutureGeneric<T>::Private*>(this->d.data())->value = value;
+        dataImpl()->value = value;
     }
 
     /**
@@ -240,7 +240,27 @@ public:
      */
     T value() const
     {
-        return static_cast<typename FutureGeneric<T>::Private*>(this->d.data())->value;
+        return dataImpl()->value;
+    }
+
+    T *operator->()
+    {
+        return &(dataImpl()->value);
+    }
+
+    const T *operator->() const
+    {
+        return &(dataImpl()->value);
+    }
+
+    T &operator*()
+    {
+        return dataImpl()->value;
+    }
+
+    const T &operator*() const
+    {
+        return dataImpl()->value;
     }
 
 #ifdef ONLY_DOXYGEN
@@ -327,10 +347,9 @@ public:
     void setProgress(qreal progress);
 
 #endif // ONLY_DOXYGEN
-
     void setResult(const T &value)
     {
-        static_cast<typename FutureGeneric<T>::Private*>(this->d.data())->value = value;
+        dataImpl()->value = value;
         FutureBase::setFinished();
     }
 
@@ -341,6 +360,16 @@ protected:
     {}
     //@endcond
 
+private:
+    inline auto dataImpl()
+    {
+        return static_cast<typename FutureGeneric<T>::Private*>(this->d.data());
+    }
+
+    inline auto dataImpl() const
+    {
+        return static_cast<typename FutureGeneric<T>::Private*>(this->d.data());
+    }
 };
 
 /**
