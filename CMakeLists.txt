@@ -7,15 +7,15 @@ find_package(ECM 5.10.0 CONFIG REQUIRED)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 14)
 
+include(KDEInstallDirs)
+include(KDECMakeSettings)
+include(KDEFrameworkCompilerSettings NO_POLICY_SCOPE)
 include(GenerateExportHeader)
 include(ECMGenerateHeaders)
 include(ECMGeneratePriFile)
 include(CMakePackageConfigHelpers)
 include(ECMSetupVersion)
 include(FeatureSummary)
-include(KDEInstallDirs)
-include(KDECMakeSettings)
-include(KDEFrameworkCompilerSettings NO_POLICY_SCOPE)
 
 set(QT_REQUIRED_VERSION "5.2.0")
 
