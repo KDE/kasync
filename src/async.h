@@ -254,9 +254,8 @@ Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&);
 
 ///Sync continuation without job: [] () -> T { ... }
 template<typename Out = void, typename ... In, typename F>
-auto start(F &&func) -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<In>() ...))>::value,
-                                                       Job<decltype(func(std::declval<In>() ...)), In...>
-                                                      >::type
+auto start(F &&func) -> std::enable_if_t<!std::is_base_of<JobBase, decltype(func(std::declval<In>() ...))>::value,
+                                         Job<decltype(func(std::declval<In>() ...)), In...>>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return syncStartImpl<Out, In...>(std::forward<F>(func));
@@ -264,9 +263,8 @@ auto start(F &&func) -> typename std::enable_if<!std::is_base_of<JobBase, declty
 
 ///continuation with job: [] () -> KAsync::Job<...> { ... }
 template<typename Out = void, typename ... In, typename F>
-auto start(F &&func) -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<In>() ...))>::value,
-                                                       Job<typename decltype(func(std::declval<In>() ...))::OutType, In...>
-                                                      >::type
+auto start(F &&func) -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(std::declval<In>() ...))>::value,
+                                         Job<typename decltype(func(std::declval<In>() ...))::OutType, In...>>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(std::forward<F>(func)));
@@ -520,9 +518,8 @@ public:
 
     ///Continuation returning job: [] (Arg) -> KAsync::Job<...> { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(std::declval<Out>()))>::value,
-                                                       Job<typename decltype(func(std::declval<Out>()))::OutType, In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(std::declval<Out>()))>::value,
+                                                  Job<typename decltype(func(std::declval<Out>()))::OutType, In...>>
     {
         using ResultJob = decltype(func(std::declval<Out>())); //Job<QString, int>
         return thenImpl<typename ResultJob::OutType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
@@ -530,9 +527,8 @@ public:
 
     ///Void continuation with job: [] () -> KAsync::Job<...> { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func())>::value,
-                                                       Job<typename decltype(func())::OutType, In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<std::is_base_of<JobBase, decltype(func())>::value,
+                                                  Job<typename decltype(func())::OutType, In...>>
     {
         using ResultJob = decltype(func()); //Job<QString, void>
         return thenImpl<typename ResultJob::OutType>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
@@ -540,9 +536,8 @@ public:
 
     ///Error continuation returning job: [] (KAsync::Error, Arg) -> KAsync::Job<...> { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(KAsync::Error{}, std::declval<Out>()))>::value,
-                                                       Job<typename decltype(func(KAsync::Error{}, std::declval<Out>()))::OutType, In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(KAsync::Error{}, std::declval<Out>()))>::value,
+                                                  Job<typename decltype(func(KAsync::Error{}, std::declval<Out>()))::OutType, In...>>
     {
         using ResultJob = decltype(func(KAsync::Error{}, std::declval<Out>())); //Job<QString, int>
         return thenImpl<typename ResultJob::OutType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
@@ -550,9 +545,8 @@ public:
 
     ///Error void continuation returning job: [] (KAsync::Error) -> KAsync::Job<...> { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<std::is_base_of<JobBase, decltype(func(KAsync::Error{}))>::value,
-                                                       Job<typename decltype(func(KAsync::Error{}))::OutType, In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(KAsync::Error{}))>::value,
+                                                  Job<typename decltype(func(KAsync::Error{}))::OutType, In...>>
     {
         using ResultJob = decltype(func(KAsync::Error{}));
         return thenImpl<typename ResultJob::OutType>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
@@ -560,9 +554,8 @@ public:
 
     ///Sync continuation: [] (Arg) -> void { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(std::declval<Out>()))>::value,
-                                                       Job<decltype(func(std::declval<Out>())), In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<!std::is_base_of<JobBase, decltype(func(std::declval<Out>()))>::value,
+                                                  Job<decltype(func(std::declval<Out>())), In...>>
     {
         using ResultType = decltype(func(std::declval<Out>())); //QString
         return syncThenImpl<ResultType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
@@ -570,9 +563,8 @@ public:
 
     ///Sync void continuation: [] () -> void { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func())>::value,
-                                                       Job<decltype(func()), In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<!std::is_base_of<JobBase, decltype(func())>::value,
+                                                  Job<decltype(func()), In...>>
     {
         using ResultType = decltype(func()); //QString
         return syncThenImpl<ResultType>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
@@ -580,9 +572,8 @@ public:
 
     ///Sync error continuation: [] (KAsync::Error, Arg) -> void { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(KAsync::Error{}, std::declval<Out>()))>::value,
-                                                       Job<decltype(func(KAsync::Error{}, std::declval<Out>())),In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<!std::is_base_of<JobBase, decltype(func(KAsync::Error{}, std::declval<Out>()))>::value,
+                                                  Job<decltype(func(KAsync::Error{}, std::declval<Out>())),In...>>
     {
         using ResultType = decltype(func(KAsync::Error{}, std::declval<Out>())); //QString
         return syncThenImpl<ResultType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
@@ -590,9 +581,8 @@ public:
 
     ///Sync void error continuation: [] (KAsync::Error) -> void { ... }
     template<typename OutOther = void, typename ... InOther, typename F>
-    auto then(F &&func) const -> typename std::enable_if<!std::is_base_of<JobBase, decltype(func(KAsync::Error{}))>::value,
-                                                       Job<decltype(func(KAsync::Error{})), In...>
-                                                      >::type
+    auto then(F &&func) const -> std::enable_if_t<!std::is_base_of<JobBase, decltype(func(KAsync::Error{}))>::value,
+                                                  Job<decltype(func(KAsync::Error{})), In...>>
     {
         using ResultType = decltype(func(KAsync::Error{}));
         return syncThenImpl<ResultType>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
@@ -620,7 +610,7 @@ public:
      * Shorthand for a forEach loop that automatically uses the return type of
      * this job to deduce the type exepected.
      */
-    template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
+    template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, std::enable_if_t<!std::is_void<ListType>::value, int> = 0>
     Job<void, In ...> each(JobContinuation<void, ValueType> &&func) const
     {
         eachInvariants<OutOther>();
@@ -631,7 +621,7 @@ public:
      * Shorthand for a serialForEach loop that automatically uses the return type
      * of this job to deduce the type exepected.
      */
-    template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, typename std::enable_if<!std::is_void<ListType>::value, int>::type = 0>
+    template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, std::enable_if_t<!std::is_void<ListType>::value, int> = 0>
     Job<void, In ...> serialEach(JobContinuation<void, ValueType> &&func) const
     {
         eachInvariants<OutOther>();
@@ -648,7 +638,7 @@ public:
      *  .then<void>([](){}); //Necessary for the assignment without the implicit conversion
      */
     template<typename ... InOther>
-    operator typename std::conditional<std::is_void<OutType>::value, IncompleteType, Job<void>>::type ();
+    operator std::conditional_t<std::is_void<OutType>::value, IncompleteType, Job<void>>();
 
     /**
      * Adds an unnamed value to the context.
@@ -733,8 +723,7 @@ private:
 
     //Base case for an empty parameter pack
     template<typename ... InOther>
-    typename std::enable_if<(sizeof...(InOther) == 0)>::type
-    thenInvariants() const;
+    auto thenInvariants() const -> std::enable_if_t<(sizeof...(InOther) == 0)>;
 
     template<typename OutOther>
     void eachInvariants() const;

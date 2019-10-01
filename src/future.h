@@ -170,8 +170,7 @@ protected:
             : FutureBase::PrivateBase(execution)
         {}
 
-        typename std::conditional<std::is_void<T>::value, int /* dummy */, T>::type
-        value;
+        std::conditional_t<std::is_void<T>::value, int /* dummy */, T> value;
     };
 };
 //@endcond

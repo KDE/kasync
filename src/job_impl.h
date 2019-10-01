@@ -346,7 +346,7 @@ ExecutionPtr Executor<PrevOut, Out, In ...>::exec(const ExecutorBasePtr &self, E
 
 template<typename Out, typename ... In>
 template<typename ... InOther>
-Job<Out, In ...>::operator typename std::conditional<std::is_void<OutType>::value, IncompleteType, Job<void>>::type ()
+Job<Out, In ...>::operator std::conditional_t<std::is_void<OutType>::value, IncompleteType, Job<void>> ()
 {
     return thenImpl<void, InOther ...>({[](InOther ...){ return KAsync::null<void>(); }}, {});
 }
@@ -468,8 +468,7 @@ void Job<Out, In ...>::thenInvariants() const
 
 template<typename Out, typename ... In>
 template<typename ... InOther>
-typename std::enable_if<(sizeof...(InOther) == 0)>::type
-Job<Out, In ...>::thenInvariants() const
+auto Job<Out, In ...>::thenInvariants() const -> std::enable_if_t<(sizeof...(InOther) == 0)>
 {
 
 }

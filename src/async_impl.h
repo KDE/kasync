@@ -40,13 +40,13 @@ struct isIterable {
 };
 
 template<typename T>
-struct isIterable<T, typename std::conditional<false, typename T::iterator, void>::type> {
+struct isIterable<T, std::conditional_t<false, typename T::iterator, void>> {
     enum { value = 1 };
 };
 
 template<typename ... T>
 struct prevOut {
-    using type = typename std::tuple_element<0, std::tuple<T ..., void>>::type;
+    using type = std::tuple_element_t<0, std::tuple<T ..., void>>;
 };
 
 template<typename T, typename Out, typename ... In>
@@ -60,28 +60,28 @@ struct syncFuncHelper {
 };
 
 template<typename T>
-inline typename std::enable_if<!std::is_void<T>::value, void>::type
+inline std::enable_if_t<!std::is_void<T>::value, void>
 copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     out.setValue(in.value());
 }
 
 template<typename T>
-inline typename std::enable_if<std::is_void<T>::value, void>::type
+inline std::enable_if_t<std::is_void<T>::value, void>
 copyFutureValue(const KAsync::Future<T> &/* in */, KAsync::Future<T> &/* out */)
 {
     // noop
 }
 
 template<typename T>
-inline typename std::enable_if<!std::is_void<T>::value, void>::type
+inline std::enable_if_t<!std::is_void<T>::value, void>
 aggregateFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     out.setValue(out.value() + in.value());
 }
 
 template<typename T>
-inline typename std::enable_if<std::is_void<T>::value, void>::type
+inline std::enable_if_t<std::is_void<T>::value, void>
 aggregateFutureValue(const KAsync::Future<T> & /*in */, KAsync::Future<T> & /*out */)
 {
     // noop

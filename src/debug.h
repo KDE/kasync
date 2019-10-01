@@ -70,8 +70,8 @@ private:
     }
 
     template<typename T, typename ... Tail>
-    typename std::enable_if<sizeof ... (Tail) != 0, QString>::type
-    storeExecutorNameExpanded() {
+    auto storeExecutorNameExpanded() -> std::enable_if_t<sizeof ... (Tail) != 0, QString>
+    {
         return storeExecutorNameExpanded<T>() % QStringLiteral(", ") % storeExecutorNameExpanded<Tail ...>();
     }
 
