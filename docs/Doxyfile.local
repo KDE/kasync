@@ -7,5 +7,4 @@ INLINE_INFO            = NO
 SORT_MEMBER_DOCS       = YES
 FILE_PATTERNS          = *.h
 RECURSIVE              = YES
-PREDEFINED             = ONLY_DOXYGEN \
-                         KASYNC_EXPORT
+PREDEFINED             = ONLY_DOXYGEN KASYNC_EXPORT

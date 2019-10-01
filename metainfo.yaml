@@ -1,0 +1,16 @@
+maintainer: dvratil
+description: API to build composable asynchronous tasks
+tier: 1
+type: functional
+platforms:
+    - name: All
+portingAid: false
+deprecated: false
+release: false
+libraries:
+ - qmake: KAsync
+   cmake: KAsync
+cmakename: KAsync
+
+public_lib: true
+
