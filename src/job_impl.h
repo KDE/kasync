@@ -53,10 +53,10 @@ public:
         KAsync::Future<Out> *future = execution->result<Out>();
 
         const auto &helper = ThenExecutor<Out, In ...>::mContinuationHelper;
-        if (helper.handleContinuation) {
-            helper.handleContinuation(prevFuture ? prevFuture->value() : In() ..., *future);
-        } else if (helper.handleErrorContinuation) {
-            helper.handleErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
+        if (helper.asyncContinuation) {
+            helper.asyncContinuation(prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (helper.asyncErrorContinuation) {
+            helper.asyncErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
                                            prevFuture ? prevFuture->value() : In() ..., *future);
         } else if (helper.jobContinuation) {
             executeJobAndApply(prevFuture ? prevFuture->value() : In() ...,

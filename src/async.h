@@ -83,10 +83,10 @@ template<typename Out, typename ... In>
 class Job;
 
 template<typename Out, typename ... In>
-using HandleContinuation = typename detail::identity<std::function<void(In ..., KAsync::Future<Out>&)>>::type;
+using AsyncContinuation = typename detail::identity<std::function<void(In ..., KAsync::Future<Out>&)>>::type;
 
 template<typename Out, typename ... In>
-using HandleErrorContinuation = typename detail::identity<std::function<void(const KAsync::Error &, In ..., KAsync::Future<Out>&)>>::type;
+using AsyncErrorContinuation = typename detail::identity<std::function<void(const KAsync::Error &, In ..., KAsync::Future<Out>&)>>::type;
 
 template<typename Out, typename ... In>
 using SyncContinuation = typename detail::identity<std::function<Out(In ...)>>::type;
@@ -132,11 +132,11 @@ struct KASYNC_EXPORT Execution {
 
 template<typename Out, typename ... In>
 struct ContinuationHelper {
-    ContinuationHelper(HandleContinuation<Out, In...> &&func)
-        : handleContinuation(std::move(func))
+    ContinuationHelper(AsyncContinuation<Out, In...> &&func)
+        : asyncContinuation(std::move(func))
     {};
-    ContinuationHelper(HandleErrorContinuation<Out, In...> &&func)
-        : handleErrorContinuation(std::move(func))
+    ContinuationHelper(AsyncErrorContinuation<Out, In...> &&func)
+        : asyncErrorContinuation(std::move(func))
     {};
     ContinuationHelper(JobContinuation<Out, In...> &&func)
         : jobContinuation(std::move(func))
@@ -145,8 +145,8 @@ struct ContinuationHelper {
         : jobErrorContinuation(std::move(func))
     {};
 
-    HandleContinuation<Out, In...> handleContinuation;
-    HandleErrorContinuation<Out, In...> handleErrorContinuation;
+    AsyncContinuation<Out, In...> asyncContinuation;
+    AsyncErrorContinuation<Out, In...> asyncErrorContinuation;
     JobContinuation<Out, In...> jobContinuation;
     JobErrorContinuation<Out, In...> jobErrorContinuation;
 };
@@ -272,10 +272,10 @@ auto start(F &&func) -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(
 
 ///Handle continuation: [] (KAsync::Future<T>, ...) { ... }
 template<typename Out = void, typename ... In>
-auto start(HandleContinuation<Out, In ...> &&func) -> Job<Out, In ...>
+auto start(AsyncContinuation<Out, In ...> &&func) -> Job<Out, In ...>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(std::forward<HandleContinuation<Out, In ...>>(func)));
+    return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(std::forward<AsyncContinuation<Out, In ...>>(func)));
 }
 
 enum ControlFlowFlag {
@@ -590,17 +590,17 @@ public:
 
     ///Shorthand for a job that receives the error and a handle
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(HandleContinuation<OutOther, InOther ...> &&func) const
+    Job<OutOther, In ...> then(AsyncContinuation<OutOther, InOther ...> &&func) const
     {
-        return thenImpl<OutOther, InOther ...>({std::forward<HandleContinuation<OutOther, InOther ...>>(func)},
+        return thenImpl<OutOther, InOther ...>({std::forward<AsyncContinuation<OutOther, InOther ...>>(func)},
                                                Private::ExecutionFlag::GoodCase);
     }
 
     ///Shorthand for a job that receives the error and a handle
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(HandleErrorContinuation<OutOther, InOther ...> &&func) const
+    Job<OutOther, In ...> then(AsyncErrorContinuation<OutOther, InOther ...> &&func) const
     {
-        return thenImpl<OutOther, InOther ...>({std::forward<HandleErrorContinuation<OutOther, InOther ...>>(func)}, Private::ExecutionFlag::Always);
+        return thenImpl<OutOther, InOther ...>({std::forward<AsyncErrorContinuation<OutOther, InOther ...>>(func)}, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that receives the error only
@@ -701,7 +701,7 @@ public:
     KAsync::Future<Out> exec();
 
     explicit Job(JobContinuation<Out, In ...> &&func);
-    explicit Job(HandleContinuation<Out, In ...> &&func);
+    explicit Job(AsyncContinuation<Out, In ...> &&func);
 
 private:
     //@cond PRIVATE
