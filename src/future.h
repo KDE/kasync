@@ -118,6 +118,7 @@ protected:
     explicit FutureBase();
     explicit FutureBase(FutureBase::PrivateBase *dd);
     FutureBase(const FutureBase &other);
+    FutureBase &operator=(const FutureBase &other) = default;
 
     void addWatcher(KAsync::FutureWatcherBase *watcher);
     void releaseExecution();
@@ -158,9 +159,8 @@ protected:
         : FutureBase(new Private(execution))
     {}
 
-    FutureGeneric(const FutureGeneric<T> &other)
-        : FutureBase(other)
-    {}
+    FutureGeneric(const FutureGeneric &) = default;
+    FutureGeneric &operator=(const FutureGeneric &) = default;
 
 protected:
     class Private : public FutureBase::PrivateBase
@@ -393,13 +393,6 @@ public:
      */
     Future()
         : FutureGeneric<void>(KAsync::Private::ExecutionPtr())
-    {}
-
-    /**
-     * @brief Copy constructor
-     */
-    Future(const Future<void> &other)
-        : FutureGeneric<void>(other)
     {}
 
 protected:

@@ -58,6 +58,16 @@ public:
         } else if (helper.asyncErrorContinuation) {
             helper.asyncErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
                                            prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (helper.syncContinuation) {
+            callAndApply(prevFuture ? prevFuture->value() : In() ...,
+                         helper.syncContinuation, *future, std::is_void<Out>());
+            future->setFinished();
+        } else if (helper.syncErrorContinuation) {
+            assert(prevFuture);
+            callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
+                         prevFuture ? prevFuture->value() : In() ...,
+                         helper.syncErrorContinuation, *future, std::is_void<Out>());
+            future->setFinished();
         } else if (helper.jobContinuation) {
             executeJobAndApply(prevFuture ? prevFuture->value() : In() ...,
                                helper.jobContinuation, *future, std::is_void<Out>());
@@ -128,116 +138,27 @@ private:
             }).exec();
     }
 
-    ContinuationHelper<Out, In ...> mContinuationHelper;
-};
-
-
-template<typename Out, typename ... In>
-class SyncThenExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
-{
-private:
-
-    void callAndApply(In && ... input, const SyncContinuation<Out, In ...> &func,
-                      Future<Out> &future, std::false_type)
+    void callAndApply(In && ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
     {
         future.setValue(func(std::forward<In>(input) ...));
     }
 
-    void callAndApply(In && ... input, const SyncContinuation<Out, In ...> &func,
-                      Future<Out> &, std::true_type)
+    void callAndApply(In && ... input, const SyncContinuation<Out, In ...> &func, Future<Out> &, std::true_type)
     {
         func(std::forward<In>(input) ...);
     }
 
-    void callAndApply(const Error &error, In && ... input, const SyncErrorContinuation<Out, In ...> &func,
-                      Future<Out> &future, std::false_type)
+    void callAndApply(const Error &error, In && ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &future, std::false_type)
     {
         future.setValue(func(error, std::forward<In>(input) ...));
     }
 
-    void callAndApply(const Error &error, In && ... input, const SyncErrorContinuation<Out, In ...> &func,
-                      Future<Out> &, std::true_type)
+    void callAndApply(const Error &error, In && ... input, const SyncErrorContinuation<Out, In ...> &func, Future<Out> &, std::true_type)
     {
         func(error, std::forward<In>(input) ...);
     }
 
-    const SyncContinuation<Out, In ...> mContinuation;
-    const SyncErrorContinuation<Out, In ...> mErrorContinuation;
-
-public:
-    SyncThenExecutor(SyncContinuation<Out, In ...> &&worker,
-                     const ExecutorBasePtr &parent = ExecutorBasePtr(),
-                     ExecutionFlag executionFlag = Always)
-        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mContinuation(std::move(worker))
-    {
-
-    }
-
-    SyncThenExecutor(SyncErrorContinuation<Out, In ...> &&worker,
-                     const ExecutorBasePtr &parent = ExecutorBasePtr(),
-                     ExecutionFlag executionFlag = Always)
-        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mErrorContinuation(std::move(worker))
-    {
-
-    }
-
-    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE
-    {
-        KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
-        if (execution->prevExecution) {
-            prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
-            assert(prevFuture->isFinished());
-        }
-
-        KAsync::Future<Out> *future = execution->result<Out>();
-        if (SyncThenExecutor<Out, In ...>::mContinuation) {
-            callAndApply(prevFuture ? prevFuture->value() : In() ...,
-                        SyncThenExecutor<Out, In ...>::mContinuation,
-                        *future, std::is_void<Out>());
-        }
-
-        if (SyncThenExecutor<Out, In ...>::mErrorContinuation) {
-            assert(prevFuture);
-            callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                        prevFuture ? prevFuture->value() : In() ...,
-                        SyncThenExecutor<Out, In ...>::mErrorContinuation,
-                        *future, std::is_void<Out>());
-        }
-        future->setFinished();
-    }
-};
-
-template<typename Out, typename ... In>
-class SyncErrorExecutor: public Executor<typename detail::prevOut<In ...>::type, Out, In ...>
-{
-private:
-    const SyncErrorContinuation<void> mContinuation;
-
-public:
-    SyncErrorExecutor(SyncErrorContinuation<void> &&worker,
-                      const ExecutorBasePtr &parent = ExecutorBasePtr(),
-                      ExecutionFlag executionFlag = Always)
-        : Executor<typename detail::prevOut<In ...>::type, Out, In ...>(parent, executionFlag)
-        , mContinuation(std::move(worker))
-    {
-
-    }
-
-    void run(const ExecutionPtr &execution) Q_DECL_OVERRIDE
-    {
-        KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
-        if (execution->prevExecution) {
-            prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
-            assert(prevFuture->isFinished());
-        }
-
-        KAsync::Future<Out> *future = execution->result<Out>();
-        assert(prevFuture->hasError());
-        mContinuation(prevFuture->errors().first());
-        future->setError(prevFuture->errors().first());
-    }
+    ContinuationHelper<Out, In ...> mContinuationHelper;
 };
 
 template<typename T>
@@ -348,7 +269,7 @@ template<typename Out, typename ... In>
 template<typename ... InOther>
 Job<Out, In ...>::operator std::conditional_t<std::is_void<OutType>::value, IncompleteType, Job<void>> ()
 {
-    return thenImpl<void, InOther ...>({[](InOther ...){ return KAsync::null<void>(); }}, {});
+    return thenImpl<void, InOther ...>({JobContinuation<void, InOther ...>([](InOther ...){ return KAsync::null<void>(); })}, {});
 }
 
 template<typename Out, typename ... In>
@@ -378,8 +299,9 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncContinuation<OutOther, 
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
-    return Job<OutOther, In...>(QSharedPointer<Private::SyncThenExecutor<OutOther, InOther ...>>::create(
-                std::forward<SyncContinuation<OutOther, InOther ...>>(func), mExecutor, execFlag));
+    return Job<OutOther, In...>(QSharedPointer<Private::ThenExecutor<OutOther, InOther ...>>::create(
+                Private::ContinuationHelper<OutOther, InOther ...>(std::forward<SyncContinuation<OutOther, InOther ...>>(func)),
+                mExecutor, execFlag));
 }
 
 template<typename Out, typename ... In>
@@ -389,20 +311,30 @@ Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncErrorContinuation<OutOt
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
     thenInvariants<InOther ...>();
-    return Job<OutOther, In...>(QSharedPointer<Private::SyncThenExecutor<OutOther, InOther ...>>::create(
-                std::forward<SyncErrorContinuation<OutOther, InOther ...>>(func), mExecutor, execFlag));
+    return Job<OutOther, In...>(QSharedPointer<Private::ThenExecutor<OutOther, InOther ...>>::create(
+                Private::ContinuationHelper<OutOther, InOther ...>(std::forward<SyncErrorContinuation<OutOther, InOther ...>>(func)),
+                mExecutor, execFlag));
 }
 
 template<typename Out, typename ... In>
-Job<Out, In ...> Job<Out, In ...>::onError(const SyncErrorContinuation<void> &errorFunc) const
+Job<Out, In ...> Job<Out, In ...>::onError(SyncErrorContinuation<void> &&errorFunc) const
 {
-    return Job<Out, In...>(QSharedPointer<Private::SyncErrorExecutor<Out, Out>>::create(
-            [=](const Error &error) {
-                errorFunc(error);
-            }, mExecutor, Private::ExecutionFlag::ErrorCase));
+    return Job<Out, In...>(QSharedPointer<Private::ThenExecutor<Out, Out>>::create(
+                // Extra indirection to allow propagating the result of a previous future when no
+                // error occurs
+                Private::ContinuationHelper<Out, Out>([errorFunc = std::move(errorFunc)](const Error &error, const Out &val) {
+                    errorFunc(error);
+                    return val;
+                }), mExecutor, Private::ExecutionFlag::ErrorCase));
 }
 
-
+template<> // Specialize for void jobs
+inline Job<void> Job<void>::onError(SyncErrorContinuation<void> &&errorFunc) const
+{
+    return Job<void>(QSharedPointer<Private::ThenExecutor<void>>::create(
+                Private::ContinuationHelper<void>(std::forward<SyncErrorContinuation<void>>(errorFunc)),
+                mExecutor, Private::ExecutionFlag::ErrorCase));
+}
 
 
 template<typename Out, typename ... In>
@@ -486,8 +418,9 @@ template<typename Out, typename ... In>
 Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&func)
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Job<Out, In...>(QSharedPointer<Private::SyncThenExecutor<Out, In ...>>::create(
-                std::forward<SyncContinuation<Out, In ...>>(func)));
+    return Job<Out, In...>(QSharedPointer<Private::ThenExecutor<Out, In ...>>::create(
+                Private::ContinuationHelper<Out, In ...>(std::forward<SyncContinuation<Out, In ...>>(func)),
+                nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
@@ -552,7 +485,7 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job)
                 });
         };
     return Job<void, List>(QSharedPointer<Private::ThenExecutor<void, List>>::create(
-                Private::ContinuationHelper<void, List>(std::move(cont)), nullptr, Private::ExecutionFlag::GoodCase));
+                Private::ContinuationHelper<void, List>(JobContinuation<void, List>(std::move(cont))), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 
@@ -584,7 +517,7 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job)
                 });
         };
     return Job<void, List>(QSharedPointer<Private::ThenExecutor<void, List>>::create(
-            Private::ContinuationHelper<void, List>(std::move(cont)), nullptr, Private::ExecutionFlag::GoodCase));
+            Private::ContinuationHelper<void, List>(JobContinuation<void, List>(std::move(cont))), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 template<typename List, typename ValueType>
