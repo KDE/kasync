@@ -131,23 +131,23 @@ struct KASYNC_EXPORT Execution {
 
 
 template<typename Out, typename ... In>
-struct ContinuationHelper {
-    ContinuationHelper(AsyncContinuation<Out, In...> &&func)
+struct ContinuationHolder {
+    ContinuationHolder(AsyncContinuation<Out, In...> &&func)
         : asyncContinuation(std::move(func))
     {};
-    ContinuationHelper(AsyncErrorContinuation<Out, In...> &&func)
+    ContinuationHolder(AsyncErrorContinuation<Out, In...> &&func)
         : asyncErrorContinuation(std::move(func))
     {};
-    ContinuationHelper(SyncContinuation<Out, In...> &&func)
+    ContinuationHolder(SyncContinuation<Out, In...> &&func)
         : syncContinuation(std::move(func))
     {}
-    ContinuationHelper(SyncErrorContinuation<Out, In...> &&func)
+    ContinuationHolder(SyncErrorContinuation<Out, In...> &&func)
         : syncErrorContinuation(std::move(func))
     {}
-    ContinuationHelper(JobContinuation<Out, In...> &&func)
+    ContinuationHolder(JobContinuation<Out, In...> &&func)
         : jobContinuation(std::move(func))
     {};
-    ContinuationHelper(JobErrorContinuation<Out, In...> &&func)
+    ContinuationHolder(JobErrorContinuation<Out, In...> &&func)
         : jobErrorContinuation(std::move(func))
     {};
 
@@ -242,7 +242,7 @@ private:
 
 
 template<typename Out, typename ... In>
-Job<Out, In ...> startImpl(Private::ContinuationHelper<Out, In ...> &&);
+Job<Out, In ...> startImpl(Private::ContinuationHolder<Out, In ...> &&);
 
 template<typename Out, typename ... In>
 Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&);
@@ -275,7 +275,7 @@ auto start(F &&func) -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(
                                          Job<typename decltype(func(std::declval<In>() ...))::OutType, In...>>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(JobContinuation<Out, In...>(std::forward<F>(func))));
+    return startImpl<Out, In...>(Private::ContinuationHolder<Out, In ...>(JobContinuation<Out, In...>(std::forward<F>(func))));
 }
 
 ///Handle continuation: [] (KAsync::Future<T>, ...) { ... }
@@ -283,7 +283,7 @@ template<typename Out = void, typename ... In>
 auto start(AsyncContinuation<Out, In ...> &&func) -> Job<Out, In ...>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(std::forward<AsyncContinuation<Out, In ...>>(func)));
+    return startImpl<Out, In...>(Private::ContinuationHolder<Out, In ...>(std::forward<AsyncContinuation<Out, In ...>>(func)));
 }
 
 enum ControlFlowFlag {
@@ -488,7 +488,7 @@ class Job : public JobBase
     friend class Job;
 
     template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> startImpl(Private::ContinuationHelper<OutOther, InOther ...> &&);
+    friend Job<OutOther, InOther ...> startImpl(Private::ContinuationHolder<OutOther, InOther ...> &&);
 
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> syncStartImpl(SyncContinuation<OutOther, InOther ...> &&);
@@ -724,7 +724,7 @@ private:
     explicit Job(Private::ExecutorBasePtr executor);
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> thenImpl(Private::ContinuationHelper<OutOther, InOther ...> helper,
+    Job<OutOther, In ...> thenImpl(Private::ContinuationHolder<OutOther, InOther ...> helper,
                                    Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
 
     template<typename OutOther, typename ... InOther>
