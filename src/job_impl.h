@@ -52,29 +52,30 @@ public:
         //Execute one of the available workers
         KAsync::Future<Out> *future = execution->result<Out>();
 
-        const auto &helper = ThenExecutor<Out, In ...>::mContinuationHolder;
-        if (helper.asyncContinuation) {
-            helper.asyncContinuation(prevFuture ? prevFuture->value() : In() ..., *future);
-        } else if (helper.asyncErrorContinuation) {
-            helper.asyncErrorContinuation(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                                           prevFuture ? prevFuture->value() : In() ..., *future);
-        } else if (helper.syncContinuation) {
+        const auto &continuation = ThenExecutor<Out, In ...>::mContinuationHolder;
+        if (continuationIs<AsyncContinuation<Out, In ...>>(continuation)) {
+            continuationGet<AsyncContinuation<Out, In ...>>(continuation)(prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (continuationIs<AsyncErrorContinuation<Out, In ...>>(continuation)) {
+            continuationGet<AsyncErrorContinuation<Out, In ...>>(continuation)(
+                    prevFuture->hasError() ? prevFuture->errors().first() : Error(),
+                    prevFuture ? prevFuture->value() : In() ..., *future);
+        } else if (continuationIs<SyncContinuation<Out, In ...>>(continuation)) {
             callAndApply(prevFuture ? prevFuture->value() : In() ...,
-                         helper.syncContinuation, *future, std::is_void<Out>());
+                         continuationGet<SyncContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
             future->setFinished();
-        } else if (helper.syncErrorContinuation) {
+        } else if (continuationIs<SyncErrorContinuation<Out, In ...>>(continuation)) {
             assert(prevFuture);
             callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
                          prevFuture ? prevFuture->value() : In() ...,
-                         helper.syncErrorContinuation, *future, std::is_void<Out>());
+                         continuationGet<SyncErrorContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
             future->setFinished();
-        } else if (helper.jobContinuation) {
+        } else if (continuationIs<JobContinuation<Out, In ...>>(continuation)) {
             executeJobAndApply(prevFuture ? prevFuture->value() : In() ...,
-                               helper.jobContinuation, *future, std::is_void<Out>());
-        } else if (helper.jobErrorContinuation) {
+                               continuationGet<JobContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
+        } else if (continuationIs<JobErrorContinuation<Out, In ...>>(continuation)) {
             executeJobAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
                                prevFuture ? prevFuture->value() : In() ...,
-                               helper.jobErrorContinuation, *future, std::is_void<Out>());
+                               continuationGet<JobErrorContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
         }
     }
 

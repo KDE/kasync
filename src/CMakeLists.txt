@@ -5,6 +5,7 @@ set(kasync_SRCS
 )
 
 set(kasync_priv_HEADERS
+    continuations_p.h
     async_impl.h
     job_impl.h
     debug.h

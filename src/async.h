@@ -32,6 +32,7 @@
 #include "future.h"
 #include "debug.h"
 #include "async_impl.h"
+#include "continuations_p.h"
 
 #include <QVector>
 #include <QObject>
@@ -82,24 +83,6 @@ class JobBase;
 template<typename Out, typename ... In>
 class Job;
 
-template<typename Out, typename ... In>
-using AsyncContinuation = typename detail::identity<std::function<void(In ..., KAsync::Future<Out>&)>>::type;
-
-template<typename Out, typename ... In>
-using AsyncErrorContinuation = typename detail::identity<std::function<void(const KAsync::Error &, In ..., KAsync::Future<Out>&)>>::type;
-
-template<typename Out, typename ... In>
-using SyncContinuation = typename detail::identity<std::function<Out(In ...)>>::type;
-
-template<typename Out, typename ... In>
-using SyncErrorContinuation = typename detail::identity<std::function<Out(const KAsync::Error &, In ...)>>::type;
-
-template<typename Out, typename ... In>
-using JobContinuation = typename detail::identity<std::function<KAsync::Job<Out>(In ...)>>::type;
-
-template<typename Out, typename ... In>
-using JobErrorContinuation = typename detail::identity<std::function<KAsync::Job<Out>(const KAsync::Error &, In ...)>>::type;
-
 
 //@cond PRIVATE
 namespace Private
@@ -127,36 +110,6 @@ struct KASYNC_EXPORT Execution {
     ExecutionPtr prevExecution;
     std::unique_ptr<Tracer> tracer;
     FutureBase *resultBase = nullptr;
-};
-
-
-template<typename Out, typename ... In>
-struct ContinuationHolder {
-    ContinuationHolder(AsyncContinuation<Out, In...> &&func)
-        : asyncContinuation(std::move(func))
-    {};
-    ContinuationHolder(AsyncErrorContinuation<Out, In...> &&func)
-        : asyncErrorContinuation(std::move(func))
-    {};
-    ContinuationHolder(SyncContinuation<Out, In...> &&func)
-        : syncContinuation(std::move(func))
-    {}
-    ContinuationHolder(SyncErrorContinuation<Out, In...> &&func)
-        : syncErrorContinuation(std::move(func))
-    {}
-    ContinuationHolder(JobContinuation<Out, In...> &&func)
-        : jobContinuation(std::move(func))
-    {};
-    ContinuationHolder(JobErrorContinuation<Out, In...> &&func)
-        : jobErrorContinuation(std::move(func))
-    {};
-
-    AsyncContinuation<Out, In...> asyncContinuation;
-    AsyncErrorContinuation<Out, In...> asyncErrorContinuation;
-    SyncContinuation<Out, In...> syncContinuation;
-    SyncErrorContinuation<Out, In...> syncErrorContinuation;
-    JobContinuation<Out, In...> jobContinuation;
-    JobErrorContinuation<Out, In...> jobErrorContinuation;
 };
 
 typedef QSharedPointer<Execution> ExecutionPtr;

@@ -17,6 +17,8 @@ include(CMakePackageConfigHelpers)
 include(ECMSetupVersion)
 include(FeatureSummary)
 
+kde_enable_exceptions()
+
 set(QT_REQUIRED_VERSION "5.2.0")
 
 ecm_setup_version(${KAsync_VERSION}
