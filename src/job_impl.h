@@ -294,30 +294,6 @@ Job<OutOther, In ...> Job<Out, In ...>::then(const Job<OutOther, InOther ...> &j
 }
 
 template<typename Out, typename ... In>
-template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncContinuation<OutOther, InOther ...> &&func,
-                                                     Private::ExecutionFlag execFlag) const
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    thenInvariants<InOther ...>();
-    return Job<OutOther, In...>(QSharedPointer<Private::ThenExecutor<OutOther, InOther ...>>::create(
-                Private::ContinuationHolder<OutOther, InOther ...>(std::forward<SyncContinuation<OutOther, InOther ...>>(func)),
-                mExecutor, execFlag));
-}
-
-template<typename Out, typename ... In>
-template<typename OutOther, typename ... InOther>
-Job<OutOther, In ...> Job<Out, In ...>::syncThenImpl(SyncErrorContinuation<OutOther, InOther ...> &&func,
-                                                     Private::ExecutionFlag execFlag) const
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    thenInvariants<InOther ...>();
-    return Job<OutOther, In...>(QSharedPointer<Private::ThenExecutor<OutOther, InOther ...>>::create(
-                Private::ContinuationHolder<OutOther, InOther ...>(std::forward<SyncErrorContinuation<OutOther, InOther ...>>(func)),
-                mExecutor, execFlag));
-}
-
-template<typename Out, typename ... In>
 Job<Out, In ...> Job<Out, In ...>::onError(SyncErrorContinuation<void> &&errorFunc) const
 {
     return Job<Out, In...>(QSharedPointer<Private::ThenExecutor<Out, Out>>::create(

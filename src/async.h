@@ -523,7 +523,7 @@ public:
                                                   Job<decltype(func(std::declval<Out>())), In...>>
     {
         using ResultType = decltype(func(std::declval<Out>())); //QString
-        return syncThenImpl<ResultType, Out>(
+        return thenImpl<ResultType, Out>(
                 {SyncContinuation<ResultType, Out>(std::forward<F>(func))}, Private::ExecutionFlag::GoodCase);
     }
 
@@ -533,7 +533,7 @@ public:
                                                   Job<decltype(func()), In...>>
     {
         using ResultType = decltype(func()); //QString
-        return syncThenImpl<ResultType>(
+        return thenImpl<ResultType>(
                 {SyncContinuation<ResultType>(std::forward<F>(func))}, Private::ExecutionFlag::GoodCase);
     }
 
@@ -543,7 +543,7 @@ public:
                                                   Job<decltype(func(KAsync::Error{}, std::declval<Out>())),In...>>
     {
         using ResultType = decltype(func(KAsync::Error{}, std::declval<Out>())); //QString
-        return syncThenImpl<ResultType, Out>(
+        return thenImpl<ResultType, Out>(
                 {SyncErrorContinuation<ResultType, Out>(std::forward<F>(func))}, Private::ExecutionFlag::Always);
     }
 
@@ -553,7 +553,7 @@ public:
                                                   Job<decltype(func(KAsync::Error{})), In...>>
     {
         using ResultType = decltype(func(KAsync::Error{}));
-        return syncThenImpl<ResultType>(
+        return thenImpl<ResultType>(
                 {SyncErrorContinuation<ResultType>(std::forward<F>(func))}, Private::ExecutionFlag::Always);
     }
 
@@ -679,13 +679,6 @@ private:
     template<typename OutOther, typename ... InOther>
     Job<OutOther, In ...> thenImpl(Private::ContinuationHolder<OutOther, InOther ...> helper,
                                    Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
-
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(SyncContinuation<OutOther, InOther ...> &&func,
-                                       Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(SyncErrorContinuation<OutOther, InOther ...> &&func,
-                                       Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always) const;
 
     template<typename InOther, typename ... InOtherTail>
     void thenInvariants() const;
