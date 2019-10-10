@@ -23,24 +23,17 @@
 #include "kasync_export.h"
 
 #include <functional>
-#include <list>
 #include <type_traits>
 #include <cassert>
-#include <iterator>
-#include <memory>
 
 #include "future.h"
 #include "debug.h"
+
 #include "async_impl.h"
 #include "continuations_p.h"
+#include "executor_p.h"
 
-#include <QVector>
-#include <QObject>
-#include <QSharedPointer>
-#include <QPointer>
-
-#include <QDebug>
-
+class QObject;
 
 /**
  * @mainpage KAsync
@@ -82,117 +75,6 @@ class JobBase;
 
 template<typename Out, typename ... In>
 class Job;
-
-
-//@cond PRIVATE
-namespace Private
-{
-
-class ExecutorBase;
-typedef QSharedPointer<ExecutorBase> ExecutorBasePtr;
-
-class ExecutionContext;
-
-struct KASYNC_EXPORT Execution {
-    explicit Execution(const ExecutorBasePtr &executor);
-    virtual ~Execution();
-    void setFinished();
-
-    template<typename T>
-    KAsync::Future<T>* result() const
-    {
-        return static_cast<KAsync::Future<T>*>(resultBase);
-    }
-
-    void releaseFuture();
-
-    ExecutorBasePtr executor;
-    ExecutionPtr prevExecution;
-    std::unique_ptr<Tracer> tracer;
-    FutureBase *resultBase = nullptr;
-};
-
-typedef QSharedPointer<Execution> ExecutionPtr;
-
-class KASYNC_EXPORT ExecutorBase
-{
-    template<typename PrevOut, typename Out, typename ... In>
-    friend class Executor;
-
-    template<typename Out, typename ... In>
-    friend class KAsync::Job;
-
-    friend struct Execution;
-    friend class KAsync::Tracer;
-
-public:
-    virtual ~ExecutorBase() = default;
-    virtual ExecutionPtr exec(const ExecutorBasePtr &self, QSharedPointer<Private::ExecutionContext> context) = 0;
-
-protected:
-    ExecutorBase(const ExecutorBasePtr &parent)
-        : mPrev(parent)
-    {}
-
-    template<typename T>
-    KAsync::Future<T>* createFuture(const ExecutionPtr &execution) const;
-
-    ExecutorBasePtr mPrev;
-
-    void prepend(const ExecutorBasePtr &e)
-    {
-        if (mPrev) {
-            mPrev->prepend(e);
-        } else {
-            mPrev = e;
-        }
-    }
-
-    void addToContext(const QVariant &entry)
-    {
-        mContext << entry;
-    }
-
-    void guard(const QObject *o)
-    {
-        mGuards.append(QPointer<const QObject>{o});
-    }
-
-    QString mExecutorName;
-    QVector<QVariant> mContext;
-    QVector<QPointer<const QObject>> mGuards;
-};
-
-enum ExecutionFlag {
-    Always,
-    ErrorCase,
-    GoodCase
-};
-
-template<typename PrevOut, typename Out, typename ... In>
-class Executor : public ExecutorBase
-{
-protected:
-
-    Executor(const Private::ExecutorBasePtr &parent, ExecutionFlag executionFlag)
-        : ExecutorBase(parent)
-        , executionFlag(executionFlag)
-    {}
-
-    virtual ~Executor() {}
-    virtual void run(const ExecutionPtr &execution) = 0;
-
-    ExecutionPtr exec(const ExecutorBasePtr &self, QSharedPointer<Private::ExecutionContext> context) override;
-
-    const ExecutionFlag executionFlag;
-
-private:
-    void runExecution(const KAsync::Future<PrevOut> *prevFuture, const ExecutionPtr &execution, bool guardIsBroken);
-};
-
-} // namespace Private
-//@endcond
-
 
 template<typename Out, typename ... In>
 Job<Out, In ...> startImpl(Private::ContinuationHolder<Out, In ...> &&);

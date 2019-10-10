@@ -25,31 +25,6 @@
 
 using namespace KAsync;
 
-Private::Execution::Execution(const Private::ExecutorBasePtr &executor)
-    : executor(executor)
-{
-}
-
-Private::Execution::~Execution()
-{
-    if (resultBase) {
-        resultBase->releaseExecution();
-        delete resultBase;
-    }
-    prevExecution.reset();
-}
-
-void Private::Execution::setFinished()
-{
-    tracer.reset();
-}
-
-void Private::Execution::releaseFuture()
-{
-    resultBase = nullptr;
-}
-
-
 Job<void> KAsync::doWhile(const Job<ControlFlowFlag> &body)
 {
     return KAsync::start<void>([body] (KAsync::Future<void> &future) {
