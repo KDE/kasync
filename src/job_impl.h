@@ -74,7 +74,6 @@ inline Job<void> Job<void>::onError(SyncErrorContinuation<void> &&errorFunc) con
                 mExecutor, Private::ExecutionFlag::ErrorCase));
 }
 
-
 template<typename Out, typename ... In>
 template<typename FirstIn>
 KAsync::Future<Out> Job<Out, In ...>::exec(FirstIn in)
@@ -140,25 +139,6 @@ template<typename Out, typename ... In>
 template<typename ... InOther>
 auto Job<Out, In ...>::thenInvariants() const -> std::enable_if_t<(sizeof...(InOther) == 0)>
 {
-
-}
-
-
-template<typename Out, typename ... In>
-Job<Out, In ...> startImpl(Private::ContinuationHolder<Out, In ...> &&helper)
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Job<Out, In...>(QSharedPointer<Private::Executor<Out, In ...>>::create(
-                std::forward<Private::ContinuationHolder<Out, In...>>(helper), nullptr, Private::ExecutionFlag::GoodCase));
-}
-
-template<typename Out, typename ... In>
-Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&func)
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Job<Out, In...>(QSharedPointer<Private::Executor<Out, In ...>>::create(
-                Private::ContinuationHolder<Out, In ...>(std::forward<SyncContinuation<Out, In ...>>(func)),
-                nullptr, Private::ExecutionFlag::GoodCase));
 }
 
 static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
@@ -309,9 +289,8 @@ Job<Out> error(const Error &error)
         });
 }
 
-
 } // namespace KAsync
 
-//@endconf
+//@endcond
 
 #endif // KASYNC_JOB_IMPL_H
