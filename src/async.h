@@ -87,15 +87,6 @@ Job<Out, In ...> startImpl(Private::ContinuationHolder<Out, In ...> &&helper)
                 std::forward<Private::ContinuationHolder<Out, In...>>(helper), nullptr, Private::ExecutionFlag::GoodCase));
 }
 
-template<typename Out, typename ... In>
-Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&func)
-{
-    static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Job<Out, In...>(QSharedPointer<Private::Executor<Out, In ...>>::create(
-                Private::ContinuationHolder<Out, In ...>(std::forward<SyncContinuation<Out, In ...>>(func)),
-                nullptr, Private::ExecutionFlag::GoodCase));
-}
-
 } // namespace Private
 //@endcond
 
@@ -117,7 +108,7 @@ auto start(F &&func) -> std::enable_if_t<!std::is_base_of<JobBase, decltype(func
                                          Job<decltype(func(std::declval<In>() ...)), In...>>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return Private::syncStartImpl<Out, In...>(std::forward<F>(func));
+    return Private::startImpl<Out, In...>(Private::ContinuationHolder<Out, In ...>(SyncContinuation<Out, In ...>(std::forward<F>(func))));
 }
 
 ///continuation with job: [] () -> KAsync::Job<...> { ... }
@@ -340,9 +331,6 @@ class Job : public JobBase
 
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> Private::startImpl(Private::ContinuationHolder<OutOther, InOther ...> &&);
-
-    template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> Private::syncStartImpl(SyncContinuation<OutOther, InOther ...> &&);
 
     template<typename List, typename ValueType>
     friend  Job<void, List> forEach(KAsync::Job<void, ValueType> job);
