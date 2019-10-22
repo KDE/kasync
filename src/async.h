@@ -32,6 +32,7 @@
 #include "future.h"
 #include "debug.h"
 #include "async_impl.h"
+#include "continuations_p.h"
 
 #include <QVector>
 #include <QObject>
@@ -82,24 +83,6 @@ class JobBase;
 template<typename Out, typename ... In>
 class Job;
 
-template<typename Out, typename ... In>
-using HandleContinuation = typename detail::identity<std::function<void(In ..., KAsync::Future<Out>&)>>::type;
-
-template<typename Out, typename ... In>
-using HandleErrorContinuation = typename detail::identity<std::function<void(const KAsync::Error &, In ..., KAsync::Future<Out>&)>>::type;
-
-template<typename Out, typename ... In>
-using SyncContinuation = typename detail::identity<std::function<Out(In ...)>>::type;
-
-template<typename Out, typename ... In>
-using SyncErrorContinuation = typename detail::identity<std::function<Out(const KAsync::Error &, In ...)>>::type;
-
-template<typename Out, typename ... In>
-using JobContinuation = typename detail::identity<std::function<KAsync::Job<Out>(In ...)>>::type;
-
-template<typename Out, typename ... In>
-using JobErrorContinuation = typename detail::identity<std::function<KAsync::Job<Out>(const KAsync::Error &, In ...)>>::type;
-
 
 //@cond PRIVATE
 namespace Private
@@ -127,28 +110,6 @@ struct KASYNC_EXPORT Execution {
     ExecutionPtr prevExecution;
     std::unique_ptr<Tracer> tracer;
     FutureBase *resultBase = nullptr;
-};
-
-
-template<typename Out, typename ... In>
-struct ContinuationHelper {
-    ContinuationHelper(HandleContinuation<Out, In...> &&func)
-        : handleContinuation(std::move(func))
-    {};
-    ContinuationHelper(HandleErrorContinuation<Out, In...> &&func)
-        : handleErrorContinuation(std::move(func))
-    {};
-    ContinuationHelper(JobContinuation<Out, In...> &&func)
-        : jobContinuation(std::move(func))
-    {};
-    ContinuationHelper(JobErrorContinuation<Out, In...> &&func)
-        : jobErrorContinuation(std::move(func))
-    {};
-
-    HandleContinuation<Out, In...> handleContinuation;
-    HandleErrorContinuation<Out, In...> handleErrorContinuation;
-    JobContinuation<Out, In...> jobContinuation;
-    JobErrorContinuation<Out, In...> jobErrorContinuation;
 };
 
 typedef QSharedPointer<Execution> ExecutionPtr;
@@ -234,7 +195,7 @@ private:
 
 
 template<typename Out, typename ... In>
-Job<Out, In ...> startImpl(Private::ContinuationHelper<Out, In ...> &&);
+Job<Out, In ...> startImpl(Private::ContinuationHolder<Out, In ...> &&);
 
 template<typename Out, typename ... In>
 Job<Out, In ...> syncStartImpl(SyncContinuation<Out, In ...> &&);
@@ -267,15 +228,15 @@ auto start(F &&func) -> std::enable_if_t<std::is_base_of<JobBase, decltype(func(
                                          Job<typename decltype(func(std::declval<In>() ...))::OutType, In...>>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(std::forward<F>(func)));
+    return startImpl<Out, In...>(Private::ContinuationHolder<Out, In ...>(JobContinuation<Out, In...>(std::forward<F>(func))));
 }
 
 ///Handle continuation: [] (KAsync::Future<T>, ...) { ... }
 template<typename Out = void, typename ... In>
-auto start(HandleContinuation<Out, In ...> &&func) -> Job<Out, In ...>
+auto start(AsyncContinuation<Out, In ...> &&func) -> Job<Out, In ...>
 {
     static_assert(sizeof...(In) <= 1, "Only one or zero input parameters are allowed.");
-    return startImpl<Out, In...>(Private::ContinuationHelper<Out, In ...>(std::forward<HandleContinuation<Out, In ...>>(func)));
+    return startImpl<Out, In...>(Private::ContinuationHolder<Out, In ...>(std::forward<AsyncContinuation<Out, In ...>>(func)));
 }
 
 enum ControlFlowFlag {
@@ -480,7 +441,7 @@ class Job : public JobBase
     friend class Job;
 
     template<typename OutOther, typename ... InOther>
-    friend Job<OutOther, InOther ...> startImpl(Private::ContinuationHelper<OutOther, InOther ...> &&);
+    friend Job<OutOther, InOther ...> startImpl(Private::ContinuationHolder<OutOther, InOther ...> &&);
 
     template<typename OutOther, typename ... InOther>
     friend Job<OutOther, InOther ...> syncStartImpl(SyncContinuation<OutOther, InOther ...> &&);
@@ -522,7 +483,8 @@ public:
                                                   Job<typename decltype(func(std::declval<Out>()))::OutType, In...>>
     {
         using ResultJob = decltype(func(std::declval<Out>())); //Job<QString, int>
-        return thenImpl<typename ResultJob::OutType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
+        return thenImpl<typename ResultJob::OutType, Out>(
+                {JobContinuation<typename ResultJob::OutType, Out>(std::forward<F>(func))}, Private::ExecutionFlag::GoodCase);
     }
 
     ///Void continuation with job: [] () -> KAsync::Job<...> { ... }
@@ -531,7 +493,8 @@ public:
                                                   Job<typename decltype(func())::OutType, In...>>
     {
         using ResultJob = decltype(func()); //Job<QString, void>
-        return thenImpl<typename ResultJob::OutType>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
+        return thenImpl<typename ResultJob::OutType>(
+                {JobContinuation<typename ResultJob::OutType>(std::forward<F>(func))}, Private::ExecutionFlag::GoodCase);
     }
 
     ///Error continuation returning job: [] (KAsync::Error, Arg) -> KAsync::Job<...> { ... }
@@ -540,7 +503,8 @@ public:
                                                   Job<typename decltype(func(KAsync::Error{}, std::declval<Out>()))::OutType, In...>>
     {
         using ResultJob = decltype(func(KAsync::Error{}, std::declval<Out>())); //Job<QString, int>
-        return thenImpl<typename ResultJob::OutType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
+        return thenImpl<typename ResultJob::OutType, Out>(
+                {JobErrorContinuation<typename ResultJob::OutType, Out>(std::forward<F>(func))}, Private::ExecutionFlag::Always);
     }
 
     ///Error void continuation returning job: [] (KAsync::Error) -> KAsync::Job<...> { ... }
@@ -549,7 +513,8 @@ public:
                                                   Job<typename decltype(func(KAsync::Error{}))::OutType, In...>>
     {
         using ResultJob = decltype(func(KAsync::Error{}));
-        return thenImpl<typename ResultJob::OutType>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
+        return thenImpl<typename ResultJob::OutType>(
+                {JobErrorContinuation<typename ResultJob::OutType>(std::forward<F>(func))}, Private::ExecutionFlag::Always);
     }
 
     ///Sync continuation: [] (Arg) -> void { ... }
@@ -558,7 +523,8 @@ public:
                                                   Job<decltype(func(std::declval<Out>())), In...>>
     {
         using ResultType = decltype(func(std::declval<Out>())); //QString
-        return syncThenImpl<ResultType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
+        return thenImpl<ResultType, Out>(
+                {SyncContinuation<ResultType, Out>(std::forward<F>(func))}, Private::ExecutionFlag::GoodCase);
     }
 
     ///Sync void continuation: [] () -> void { ... }
@@ -567,7 +533,8 @@ public:
                                                   Job<decltype(func()), In...>>
     {
         using ResultType = decltype(func()); //QString
-        return syncThenImpl<ResultType>({std::forward<F>(func)}, Private::ExecutionFlag::GoodCase);
+        return thenImpl<ResultType>(
+                {SyncContinuation<ResultType>(std::forward<F>(func))}, Private::ExecutionFlag::GoodCase);
     }
 
     ///Sync error continuation: [] (KAsync::Error, Arg) -> void { ... }
@@ -576,7 +543,8 @@ public:
                                                   Job<decltype(func(KAsync::Error{}, std::declval<Out>())),In...>>
     {
         using ResultType = decltype(func(KAsync::Error{}, std::declval<Out>())); //QString
-        return syncThenImpl<ResultType, Out>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
+        return thenImpl<ResultType, Out>(
+                {SyncErrorContinuation<ResultType, Out>(std::forward<F>(func))}, Private::ExecutionFlag::Always);
     }
 
     ///Sync void error continuation: [] (KAsync::Error) -> void { ... }
@@ -585,26 +553,27 @@ public:
                                                   Job<decltype(func(KAsync::Error{})), In...>>
     {
         using ResultType = decltype(func(KAsync::Error{}));
-        return syncThenImpl<ResultType>({std::forward<F>(func)}, Private::ExecutionFlag::Always);
+        return thenImpl<ResultType>(
+                {SyncErrorContinuation<ResultType>(std::forward<F>(func))}, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that receives the error and a handle
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(HandleContinuation<OutOther, InOther ...> &&func) const
+    Job<OutOther, In ...> then(AsyncContinuation<OutOther, InOther ...> &&func) const
     {
-        return thenImpl<OutOther, InOther ...>({std::forward<HandleContinuation<OutOther, InOther ...>>(func)},
+        return thenImpl<OutOther, InOther ...>({std::forward<AsyncContinuation<OutOther, InOther ...>>(func)},
                                                Private::ExecutionFlag::GoodCase);
     }
 
     ///Shorthand for a job that receives the error and a handle
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> then(HandleErrorContinuation<OutOther, InOther ...> &&func) const
+    Job<OutOther, In ...> then(AsyncErrorContinuation<OutOther, InOther ...> &&func) const
     {
-        return thenImpl<OutOther, InOther ...>({std::forward<HandleErrorContinuation<OutOther, InOther ...>>(func)}, Private::ExecutionFlag::Always);
+        return thenImpl<OutOther, InOther ...>({std::forward<AsyncErrorContinuation<OutOther, InOther ...>>(func)}, Private::ExecutionFlag::Always);
     }
 
     ///Shorthand for a job that receives the error only
-    Job<Out, In ...> onError(const SyncErrorContinuation<void> &errorFunc) const;
+    Job<Out, In ...> onError(SyncErrorContinuation<void> &&errorFunc) const;
 
     /**
      * Shorthand for a forEach loop that automatically uses the return type of
@@ -701,22 +670,15 @@ public:
     KAsync::Future<Out> exec();
 
     explicit Job(JobContinuation<Out, In ...> &&func);
-    explicit Job(HandleContinuation<Out, In ...> &&func);
+    explicit Job(AsyncContinuation<Out, In ...> &&func);
 
 private:
     //@cond PRIVATE
     explicit Job(Private::ExecutorBasePtr executor);
 
     template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> thenImpl(Private::ContinuationHelper<OutOther, InOther ...> helper,
+    Job<OutOther, In ...> thenImpl(Private::ContinuationHolder<OutOther, InOther ...> helper,
                                    Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
-
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(SyncContinuation<OutOther, InOther ...> &&func,
-                                       Private::ExecutionFlag execFlag = Private::ExecutionFlag::GoodCase) const;
-    template<typename OutOther, typename ... InOther>
-    Job<OutOther, In ...> syncThenImpl(SyncErrorContinuation<OutOther, InOther ...> &&func,
-                                       Private::ExecutionFlag execFlag = Private::ExecutionFlag::Always) const;
 
     template<typename InOther, typename ... InOtherTail>
     void thenInvariants() const;

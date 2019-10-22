@@ -19,20 +19,17 @@
 #ifndef KASYNC_IMPL_H
 #define KASYNC_IMPL_H
 
-#include "async.h"
 #include <type_traits>
+#include <tuple>
 
 //@cond PRIVATE
 
 namespace KAsync {
 
-namespace detail {
-
 template<typename T>
-struct identity
-{
-    typedef T type;
-};
+class Future;
+
+namespace detail {
 
 template<typename T, typename Enable = void>
 struct isIterable {
