@@ -20,6 +20,8 @@
 #ifndef KASYNC_EXECUTION_P_H_
 #define KASYNC_EXECUTION_P_H_
 
+#include "kasync_export.h"
+
 #include "debug.h"
 
 #include <QSharedPointer>
@@ -56,7 +58,7 @@ enum ExecutionFlag {
     GoodCase
 };
 
-struct Execution {
+struct KASYNC_EXPORT Execution {
     explicit Execution(const ExecutorBasePtr &executor)
         : executor(executor)
     {}
