@@ -56,9 +56,19 @@ struct syncFuncHelper {
     using type =  Out(T::*)(In ...);
 };
 
-template<typename T>
-inline std::enable_if_t<!std::is_void<T>::value, void>
-copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
+template<typename T,
+         class = std::enable_if_t<!std::is_void<T>::value>,
+         class = std::enable_if_t<std::is_move_constructible<T>::value>>
+void copyFutureValue(KAsync::Future<T> &in, KAsync::Future<T> &out)
+{
+    out.setValue(std::move(in.value()));
+}
+
+template<typename T,
+         class = std::enable_if_t<!std::is_void<T>::value>,
+         class = std::enable_if_t<!std::is_move_constructible<T>::value>,
+         class = std::enable_if_t<std::is_copy_constructible<T>::value>>
+void copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
 {
     out.setValue(in.value());
 }

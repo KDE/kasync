@@ -133,13 +133,68 @@ class FutureWatcher;
 template<typename T>
 class Future;
 
+namespace Private {
+
+template<typename T>
+struct Storage {
+    void copy_construct(const T &val) {
+        new (&data) T(val);
+        empty = false;
+    }
+
+    void move_construct(T &&val) {
+        new (&data) T(std::move(val));
+        empty = false;
+    }
+
+    void destroy() {
+        if (!empty) {
+            reinterpret_cast<T *>(&data)->~T();
+        }
+    }
+
+    const T *get() const {
+        if (empty) {
+            return nullptr;
+        }
+        return reinterpret_cast<const T *>(&data);
+    }
+
+    T *get() {
+        if (empty) {
+            return nullptr;
+        }
+        return reinterpret_cast<T *>(&data);
+    }
+
+    const T &get_ref() const {
+        return *reinterpret_cast<const T *>(&data);
+    }
+
+    T &get_ref() {
+        return *reinterpret_cast<T *>(&data);
+    }
+
+    T &&get_lvalue_ref() {
+        empty = true;
+        return std::move(*reinterpret_cast<T *>(&data));
+    }
+
+    std::aligned_storage_t<sizeof(T), alignof(T)> data;
+    bool empty = true;
+};
+
+template<>
+struct Storage<void> {};
+
+} // namespace Private
+
 template<typename T>
 class FutureGeneric : public FutureBase
 {
     friend class FutureWatcher<T>;
 
 public:
-
     void waitForFinished() const
     {
         if (isFinished()) {
@@ -163,6 +218,7 @@ protected:
     FutureGeneric &operator=(const FutureGeneric &) = default;
 
 protected:
+
     class Private : public FutureBase::PrivateBase
     {
     public:
@@ -170,7 +226,7 @@ protected:
             : FutureBase::PrivateBase(execution)
         {}
 
-        std::conditional_t<std::is_void<T>::value, int /* dummy */, T> value;
+        KAsync::Private::Storage<T> storage;
     };
 };
 //@endcond
@@ -212,9 +268,12 @@ public:
     /**
      * @brief Copy constructor
      */
-    Future(const Future<T> &other)
-        : FutureGeneric<T>(other)
-    {}
+    Future(const Future &) = default;
+
+    /**
+     * @brief Move constructor
+     */
+    Future(Future &&) = default;
 
     /**
      * Set the result of the Future. This method is called by the task upon
@@ -227,39 +286,50 @@ public:
      *
      * @param value The result value
      */
+    void setValue(T &&value)
+    {
+        dataImpl()->storage.move_construct(std::move(value));
+    }
+
     void setValue(const T &value)
     {
-        dataImpl()->value = value;
+        dataImpl()->storage.copy_construct(value);
     }
+
 
     /**
      * Retrieve the result of the Future. Calling this method when the future has
      * not yet finished (i.e. isFinished() returns false)
      * returns undefined result.
      */
-    T value() const
+    const T &value() const
     {
-        return dataImpl()->value;
+        return dataImpl()->storage.get_ref();
+    }
+
+    T &&value()
+    {
+        return std::move(dataImpl()->storage.get_lvalue_ref());
     }
 
     T *operator->()
     {
-        return &(dataImpl()->value);
+        return dataImpl()->storage.get();
     }
 
     const T *operator->() const
     {
-        return &(dataImpl()->value);
+        return dataImpl()->storage.get();
     }
 
     T &operator*()
     {
-        return dataImpl()->value;
+        return dataImpl()->storage.get_ref();
     }
 
     const T &operator*() const
     {
-        return dataImpl()->value;
+        return dataImpl()->storage.get_ref();
     }
 
 #ifdef ONLY_DOXYGEN
@@ -348,7 +418,13 @@ public:
 #endif // ONLY_DOXYGEN
     void setResult(const T &value)
     {
-        dataImpl()->value = value;
+        dataImpl()->storage.copy_construct(value);
+        FutureBase::setFinished();
+    }
+
+    void setResult(T &&value)
+    {
+        dataImpl()->storage.move_construct(std::move(value));
         FutureBase::setFinished();
     }
 
@@ -360,12 +436,12 @@ protected:
     //@endcond
 
 private:
-    inline auto dataImpl()
+    inline auto *dataImpl()
     {
         return static_cast<typename FutureGeneric<T>::Private*>(this->d.data());
     }
 
-    inline auto dataImpl() const
+    inline const auto *dataImpl() const
     {
         return static_cast<typename FutureGeneric<T>::Private*>(this->d.data());
     }
