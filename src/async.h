@@ -227,6 +227,11 @@ Job<void, List> serialForEach(KAsync::Job<void, ValueType> job);
 template<typename List, typename ValueType = typename List::value_type>
 Job<void, List> serialForEach(JobContinuation<void, ValueType> &&);
 
+/**
+ * @brief Wait until all given futures are completed.
+ */
+template<template<typename> class Container>
+Job<void> waitForCompletion(Container<KAsync::Future<void>> &futures);
 
 /**
  * @relates Job

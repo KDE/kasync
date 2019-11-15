@@ -144,7 +144,8 @@ auto Job<Out, In ...>::thenInvariants() const -> std::enable_if_t<(sizeof...(InO
 {
 }
 
-inline KAsync::Job<void> waitForCompletion(QVector<KAsync::Future<void>> &futures)
+template<template<typename> class Container>
+KAsync::Job<void> waitForCompletion(Container<KAsync::Future<void>> &futures)
 {
     struct Context {
         void removeWatcher(KAsync::FutureWatcher<void> *w)
@@ -160,7 +161,7 @@ inline KAsync::Job<void> waitForCompletion(QVector<KAsync::Future<void>> &future
     return start<Context *>([]() {
             return new Context();
         })
-        .then<Context*, Context*>([futures](Context *context, KAsync::Future<Context *> &future) {
+        .template then<Context*, Context*>([futures](Context *context, KAsync::Future<Context *> &future) {
             for (KAsync::Future<void> subFuture : futures) {
                 if (subFuture.isFinished()) {
                     continue;
@@ -181,7 +182,7 @@ inline KAsync::Job<void> waitForCompletion(QVector<KAsync::Future<void>> &future
                 future.setResult(context);
             }
         })
-        .then<void, Context*>([](Context *context) {
+        .template then<void, Context*>([](Context *context) {
             delete context;
         });
         // .finally<void>([context]() { delete context; });
