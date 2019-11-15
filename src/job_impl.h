@@ -21,6 +21,7 @@
 #define KASYNC_JOB_IMPL_H
 
 #include "async.h"
+#include "traits_p.h"
 
 #include <QTimer>
 
@@ -123,9 +124,9 @@ template<typename Out, typename ... In>
 template<typename OutOther>
 void Job<Out, In ...>::eachInvariants() const
 {
-    static_assert(detail::isIterable<Out>::value,
+    static_assert(traits::isContainer<Out>::value,
                     "The 'Each' task can only be connected to a job that returns a list or an array.");
-    static_assert(std::is_void<OutOther>::value || detail::isIterable<OutOther>::value,
+    static_assert(std::is_void<OutOther>::value || traits::isContainer<OutOther>::value,
                     "The result type of 'Each' task must be void, a list or an array.");
 }
 

@@ -20,7 +20,6 @@
 #ifndef KASYNC_EXECUTOR_P_H
 #define KASYNC_EXECUTOR_P_H
 
-#include "async_impl.h"
 #include "execution_p.h"
 #include "continuations_p.h"
 #include "debug.h"
@@ -101,7 +100,7 @@ protected:
 template<typename Out, typename ... In>
 class Executor : public ExecutorBase
 {
-    using PrevOut = typename detail::prevOut<In ...>::type;
+    using PrevOut = std::tuple_element_t<0, std::tuple<In ..., void>>;
 
 public:
     explicit Executor(ContinuationHolder<Out, In ...> &&workerHelper, const ExecutorBasePtr &parent = {},
@@ -117,9 +116,9 @@ public:
 
     void run(const ExecutionPtr &execution)
     {
-        KAsync::Future<typename detail::prevOut<In ...>::type> *prevFuture = nullptr;
+        KAsync::Future<PrevOut> *prevFuture = nullptr;
         if (execution->prevExecution) {
-            prevFuture = execution->prevExecution->result<typename detail::prevOut<In ...>::type>();
+            prevFuture = execution->prevExecution->result<PrevOut>();
             assert(prevFuture->isFinished());
         }
 
@@ -223,7 +222,7 @@ private:
             }
             if (!prevFuture->hasError() && executionFlag == ExecutionFlag::ErrorCase) {
                 //Propagate the value to the outer Future
-                KAsync::detail::copyFutureValue<PrevOut>(*prevFuture, *execution->result<PrevOut>());
+                copyFutureValue<PrevOut>(*prevFuture, *execution->result<PrevOut>());
                 execution->resultBase->setFinished();
                 return;
             }
@@ -309,6 +308,33 @@ private:
         func(error, std::forward<In>(input) ...);
     }
 
+
+    template<typename T,
+             class = std::enable_if_t<!std::is_void<T>::value>,
+             class = std::enable_if_t<std::is_move_constructible<T>::value>
+            >
+    void copyFutureValue(KAsync::Future<T> &in, KAsync::Future<T> &out)
+    {
+        out.setValue(std::move(in.value()));
+    }
+
+    template<typename T,
+             class = std::enable_if_t<!std::is_void<T>::value>,
+             class = std::enable_if_t<!std::is_move_constructible<T>::value>,
+             class = std::enable_if_t<std::is_copy_constructible<T>::value>
+            >
+    void copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
+    {
+        out.setValue(in.value());
+    }
+
+    template<typename T,
+             class = std::enable_if_t<std::is_void<T>::value>
+            >
+    void copyFutureValue(const KAsync::Future<T> &, KAsync::Future<T> &)
+    {
+        //noop
+    }
 private:
     ContinuationHolder<Out, In ...> mContinuationHolder;
     const ExecutionFlag executionFlag;

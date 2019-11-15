@@ -29,7 +29,6 @@
 #include "future.h"
 #include "debug.h"
 
-#include "async_impl.h"
 #include "continuations_p.h"
 #include "executor_p.h"
 
