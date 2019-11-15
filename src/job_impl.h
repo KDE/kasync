@@ -143,37 +143,45 @@ auto Job<Out, In ...>::thenInvariants() const -> std::enable_if_t<(sizeof...(InO
 {
 }
 
-static inline KAsync::Job<void> waitForCompletion(QList<KAsync::Future<void>> &futures)
+inline KAsync::Job<void> waitForCompletion(QVector<KAsync::Future<void>> &futures)
 {
-    auto context = new QObject;
-    return start<void>([futures, context](KAsync::Future<void> &future) {
-            const auto total = futures.size();
-            auto count = QSharedPointer<int>::create();
-            int i = 0;
+    struct Context {
+        void removeWatcher(KAsync::FutureWatcher<void> *w)
+        {
+            pending.erase(std::remove_if(pending.begin(), pending.end(), [w](const auto &watcher) {
+                return w == watcher.get();
+            }));
+        }
+
+        std::vector<std::unique_ptr<KAsync::FutureWatcher<void>>> pending;
+    };
+
+    return start<Context *>([]() {
+            return new Context();
+        })
+        .then<Context*, Context*>([futures](Context *context, KAsync::Future<Context *> &future) {
             for (KAsync::Future<void> subFuture : futures) {
-                i++;
                 if (subFuture.isFinished()) {
-                    *count += 1;
                     continue;
                 }
                 // FIXME bind lifetime all watcher to future (repectively the main job
-                auto watcher = QSharedPointer<KAsync::FutureWatcher<void>>::create();
-                QObject::connect(watcher.data(), &KAsync::FutureWatcher<void>::futureReady,
-                                 [count, total, &future, context]() {
-                                    *count += 1;
-                                    if (*count == total) {
-                                        delete context;
-                                        future.setFinished();
+                auto watcher = std::make_unique<KAsync::FutureWatcher<void>>();
+                QObject::connect(watcher.get(), &KAsync::FutureWatcher<void>::futureReady,
+                                 [&future, watcher = watcher.get(), context]() {
+                                    context->removeWatcher(watcher);
+                                    if (context->pending.empty()) {
+                                        future.setResult(context);
                                     }
                                 });
                 watcher->setFuture(subFuture);
-                context->setProperty(QString::fromLatin1("future%1").arg(i).toLatin1().data(),
-                                     QVariant::fromValue(watcher));
+                context->pending.push_back(std::move(watcher));
             }
-            if (*count == total) {
-                delete context;
-                future.setFinished();
+            if (context->pending.empty()) {
+                future.setResult(context);
             }
+        })
+        .then<void, Context*>([](Context *context) {
+            delete context;
         });
         // .finally<void>([context]() { delete context; });
 }
@@ -183,7 +191,7 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job)
 {
     auto cont = [job] (const List &values) mutable {
             auto error = QSharedPointer<KAsync::Error>::create();
-            QList<KAsync::Future<void>> list;
+            QVector<KAsync::Future<void>> list;
             for (const auto &v : values) {
                 auto future = job
                     .template then<void>([error] (const KAsync::Error &e) {
@@ -193,7 +201,7 @@ Job<void, List> forEach(KAsync::Job<void, ValueType> job)
                         }
                     })
                     .exec(v);
-                list << future;
+                list.push_back(future);
             }
             return waitForCompletion(list)
                 .then<void>([error](KAsync::Future<void> &future) {
