@@ -1,5 +1,4 @@
 set(kasync_SRCS
-    async.cpp
     future.cpp
     debug.cpp
 )

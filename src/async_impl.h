@@ -96,7 +96,6 @@ aggregateFutureValue(const KAsync::Future<T> & /*in */, KAsync::Future<T> & /*ou
 
 } // namespace Detail
 
-
 } // namespace KAsync
 
 //@endcond

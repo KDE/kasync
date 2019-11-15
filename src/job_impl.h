@@ -22,6 +22,8 @@
 
 #include "async.h"
 
+#include <QTimer>
+
 //@cond PRIVATE
 
 namespace KAsync
@@ -289,6 +291,42 @@ Job<Out> error(const Error &error)
         });
 }
 
+inline Job<void> doWhile(const Job<ControlFlowFlag> &body)
+{
+    return KAsync::start<void>([body] (KAsync::Future<void> &future) {
+        auto job = body.then<void, ControlFlowFlag>([&future, body](const KAsync::Error &error, ControlFlowFlag flag) {
+            if (error) {
+                future.setError(error);
+                future.setFinished();
+            } else if (flag == ControlFlowFlag::Continue) {
+                doWhile(body).then<void>([&future](const KAsync::Error &error) {
+                    if (error) {
+                        future.setError(error);
+                    }
+                    future.setFinished();
+                }).exec();
+            } else {
+                future.setFinished();
+            }
+        }).exec();
+    });
+}
+
+inline Job<void> doWhile(const JobContinuation<ControlFlowFlag> &body)
+{
+    return doWhile(KAsync::start<ControlFlowFlag>([body] {
+        return body();
+    }));
+}
+
+inline Job<void> wait(int delay)
+{
+    return KAsync::start<void>([delay](KAsync::Future<void> &future) {
+        QTimer::singleShot(delay, [&future]() {
+            future.setFinished();
+        });
+    });
+}
 } // namespace KAsync
 
 //@endcond
