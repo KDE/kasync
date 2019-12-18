@@ -76,7 +76,7 @@ private:
     }
 
     #define STORE_EXECUTOR_NAME(name, ...) \
-        ExecutorBase::mExecutorName = QStringLiteral(name) % QStringLiteral("<") % storeExecutorNameExpanded<__VA_ARGS__>() % QStringLiteral(">")
+        ExecutorBase::mExecutorName = QStringLiteral(name "<") % storeExecutorNameExpanded<__VA_ARGS__>() % QStringLiteral(">")
 #else
     #define STORE_EXECUTOR_NAME(...)
 #endif

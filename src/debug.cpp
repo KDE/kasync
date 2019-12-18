@@ -34,6 +34,9 @@ Q_LOGGING_CATEGORY(Trace, "org.kde.async.trace", QtWarningMsg)
 
 QString demangleName(const char *name)
 {
+    if (!name || !*name) {
+        return {};
+    }
 #ifdef __GNUG__
     int status = 1; // uses -3 to 0 error codes
     std::unique_ptr<char, void(*)(void*)> demangled(abi::__cxa_demangle(name, nullptr, nullptr, &status), std::free);
