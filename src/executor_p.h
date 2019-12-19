@@ -127,27 +127,27 @@ public:
 
         const auto &continuation = Executor<Out, In ...>::mContinuationHolder;
         if (continuationIs<AsyncContinuation<Out, In ...>>(continuation)) {
-            continuationGet<AsyncContinuation<Out, In ...>>(continuation)(std::forward<In>(prevFuture->value()) ..., *future);
+            continuationGet<AsyncContinuation<Out, In ...>>(continuation)(prevFuture ? prevFuture->value() : In() ..., *future);
         } else if (continuationIs<AsyncErrorContinuation<Out, In ...>>(continuation)) {
             continuationGet<AsyncErrorContinuation<Out, In ...>>(continuation)(
                     prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                    std::forward<In>(prevFuture->value()) ..., *future);
+                    prevFuture ? prevFuture->value() : In() ..., *future);
         } else if (continuationIs<SyncContinuation<Out, In ...>>(continuation)) {
-            callAndApply(std::forward<In>(prevFuture->value()) ...,
+            callAndApply(prevFuture ? prevFuture->value() : In() ...,
                          continuationGet<SyncContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
             future->setFinished();
         } else if (continuationIs<SyncErrorContinuation<Out, In ...>>(continuation)) {
             assert(prevFuture);
             callAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                         std::forward<In>(prevFuture->value()) ...,
+                         prevFuture ? prevFuture->value() : In() ...,
                          continuationGet<SyncErrorContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
             future->setFinished();
         } else if (continuationIs<JobContinuation<Out, In ...>>(continuation)) {
-            executeJobAndApply(std::forward<In>(prevFuture->value()) ...,
+            executeJobAndApply(prevFuture ? prevFuture->value() : In() ...,
                                continuationGet<JobContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
         } else if (continuationIs<JobErrorContinuation<Out, In ...>>(continuation)) {
             executeJobAndApply(prevFuture->hasError() ? prevFuture->errors().first() : Error(),
-                               std::forward<In>(prevFuture->value()) ...,
+                               prevFuture ? prevFuture->value() : In() ...,
                                continuationGet<JobErrorContinuation<Out, In ...>>(continuation), *future, std::is_void<Out>());
         }
 
@@ -207,7 +207,7 @@ public:
     }
 
 private:
-    void runExecution(KAsync::Future<PrevOut> *prevFuture, const ExecutionPtr &execution, bool guardIsBroken)
+    void runExecution(const KAsync::Future<PrevOut> *prevFuture, const ExecutionPtr &execution, bool guardIsBroken)
     {
         if (guardIsBroken) {
             execution->resultBase->setFinished();
@@ -234,12 +234,12 @@ private:
                             Future<Out> &future, std::false_type)
     {
         func(std::forward<In>(input) ...)
-            .template then<void, Out>([&future](const KAsync::Error &error, Out &&v,
+            .template then<void, Out>([&future](const KAsync::Error &error, const Out &v,
                                                 KAsync::Future<void> &f) {
                 if (error) {
                     future.setError(error);
                 } else {
-                    future.setResult(std::move(v));
+                    future.setResult(v);
                 }
                 f.setFinished();
             }).exec();
@@ -263,12 +263,12 @@ private:
                             Future<Out> &future, std::false_type)
     {
         func(error, std::forward<In>(input) ...)
-            .template then<void, Out>([&future](const KAsync::Error &error, Out &&v,
+            .template then<void, Out>([&future](const KAsync::Error &error, const Out &v,
                                                 KAsync::Future<void> &f) {
                 if (error) {
                     future.setError(error);
                 } else {
-                    future.setResult(std::move(v));
+                    future.setResult(v);
                 }
                 f.setFinished();
             }).exec();
@@ -308,30 +308,16 @@ private:
         func(error, std::forward<In>(input) ...);
     }
 
-
-    template<typename T,
-             class = std::enable_if_t<!std::is_void<T>::value>,
-             class = std::enable_if_t<std::is_move_constructible<T>::value>
-            >
-    void copyFutureValue(KAsync::Future<T> &in, KAsync::Future<T> &out)
-    {
-        out.setValue(std::move(in.value()));
-    }
-
-    template<typename T,
-             class = std::enable_if_t<!std::is_void<T>::value>,
-             class = std::enable_if_t<!std::is_move_constructible<T>::value>,
-             class = std::enable_if_t<std::is_copy_constructible<T>::value>
-            >
-    void copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
+    template<typename T>
+    std::enable_if_t<!std::is_void<T>::value>
+    copyFutureValue(const KAsync::Future<T> &in, KAsync::Future<T> &out)
     {
         out.setValue(in.value());
     }
 
-    template<typename T,
-             class = std::enable_if_t<std::is_void<T>::value>
-            >
-    void copyFutureValue(const KAsync::Future<T> &, KAsync::Future<T> &)
+    template<typename T>
+    std::enable_if_t<std::is_void<T>::value>
+    copyFutureValue(const KAsync::Future<T> &, KAsync::Future<T> &)
     {
         //noop
     }

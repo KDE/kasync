@@ -71,7 +71,6 @@ private Q_SLOTS:
     void testAsyncSerialEach();
     void noTemplateArguments();
     void testValueJob();
-    void testUncopyableResult();
 
     void benchmarkSyncThenExecutor();
     void benchmarkFutureThenExecutor();
@@ -1018,32 +1017,6 @@ void AsyncTest::testValueJob()
         auto future = job.exec();
         QCOMPARE(future.value(), list);
     }
-}
-
-class Noncopyable
-{
-public:
-    Noncopyable(int i): value(i) {}
-    Noncopyable(const Noncopyable &) = delete;
-    Noncopyable &operator=(const Noncopyable &) = delete;
-    Noncopyable(Noncopyable &&) = default;
-    Noncopyable &operator=(Noncopyable &&) = default;
-
-    int value;
-};
-
-void AsyncTest::testUncopyableResult()
-{
-    auto job = KAsync::start<Noncopyable, int>([](int val, KAsync::Future<Noncopyable> &future) {
-        future.setResult(Noncopyable(val));
-    }).then([](Noncopyable &&v) {
-        return std::move(v);
-    });
-    auto future = job.exec(42);
-    QVERIFY(future.isFinished());
-
-    Noncopyable result = future.value();
-    QCOMPARE(result.value, 42);
 }
 
 QTEST_MAIN(AsyncTest)
