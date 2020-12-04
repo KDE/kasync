@@ -327,7 +327,7 @@ protected:
  * for each single entry in the list returned by the first function.
  */
 template<typename Out, typename ... In>
-class Job : public JobBase
+class [[nodiscard]] Job : public JobBase
 {
     //@cond PRIVATE
     template<typename OutOther, typename ... InOther>
