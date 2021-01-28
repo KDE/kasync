@@ -15,6 +15,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include <QVariant>
+
 #include "future.h"
 #include "debug.h"
 
