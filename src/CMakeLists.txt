@@ -34,7 +34,7 @@ target_link_libraries(KAsync
 
 
 set_target_properties(KAsync PROPERTIES
-    VERSION ${KASYNC_VERSION_STRING}
+    VERSION ${KASYNC_VERSION}
     SOVERSION ${KASYNC_SOVERSION}
     EXPORT_NAME KAsync
 )
