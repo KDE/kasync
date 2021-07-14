@@ -155,7 +155,7 @@ KAsync::Job<void> waitForCompletion(Container<KAsync::Future<void>> &futures)
                 if (subFuture.isFinished()) {
                     continue;
                 }
-                // FIXME bind lifetime all watcher to future (repectively the main job
+                // FIXME bind lifetime all watcher to future (respectively the main job)
                 auto watcher = std::make_unique<KAsync::FutureWatcher<void>>();
                 QObject::connect(watcher.get(), &KAsync::FutureWatcher<void>::futureReady,
                                  [&future, watcher = watcher.get(), context]() {

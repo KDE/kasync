@@ -280,7 +280,7 @@ protected:
  *
  * A single instance of Job represents a single method that will be executed
  * asynchronously. The Job is started by exec(), which returns Future
- * immediatelly. The Future will be set to finished state once the asynchronous
+ * immediately. The Future will be set to finished state once the asynchronous
  * task has finished. You can use Future::waitForFinished() to wait for
  * for the Future in blocking manner.
  *
@@ -348,7 +348,7 @@ public:
     ///Shorthands for a job that returns another job from it's continuation
     //
     //OutOther and InOther are only there fore backwards compatibility, but are otherwise ignored.
-    //It should never be neccessary to specify any template arguments, as they are automatically deduced from the provided argument.
+    //It should never be necessary to specify any template arguments, as they are automatically deduced from the provided argument.
     //
     //We currently have to write a then overload for:
     //* One argument in the continuation
@@ -458,7 +458,7 @@ public:
 
     /**
      * Shorthand for a forEach loop that automatically uses the return type of
-     * this job to deduce the type exepected.
+     * this job to deduce the type expected.
      */
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, std::enable_if_t<!std::is_void<ListType>::value, int> = 0>
     Job<void, In ...> each(JobContinuation<void, ValueType> &&func) const
@@ -469,7 +469,7 @@ public:
 
     /**
      * Shorthand for a serialForEach loop that automatically uses the return type
-     * of this job to deduce the type exepected.
+     * of this job to deduce the type expected.
      */
     template<typename OutOther = void, typename ListType = Out, typename ValueType = typename ListType::value_type, std::enable_if_t<!std::is_void<ListType>::value, int> = 0>
     Job<void, In ...> serialEach(JobContinuation<void, ValueType> &&func) const
