@@ -4,3 +4,4 @@
 doc-gen
 build
 .*.swp
+.clang-format
