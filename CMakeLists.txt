@@ -5,7 +5,7 @@ project(KAsync VERSION 0.3.0)
 # ECM setup
 find_package(ECM 5.10.0 CONFIG REQUIRED)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 include(KDEInstallDirs)
 include(KDECMakeSettings)
