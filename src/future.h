@@ -498,7 +498,8 @@ Q_SIGNALS:
 #endif
 
 private:
-    Q_DISABLE_COPY(FutureWatcher<T>)
+    FutureWatcher(const FutureWatcher<T> &) = delete;
+    FutureWatcher &operator=(const FutureWatcher<T> &) = delete;
 };
 
 } // namespace Async
